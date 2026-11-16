@@ -8,3 +8,9 @@ cache/
 artifacts/
 coverage/
 *.log
+
+# Additional local build metadata and OS files
+.vite/
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
