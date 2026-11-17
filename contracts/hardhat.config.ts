@@ -1,5 +1,6 @@
 import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem";
 import { configVariable, defineConfig } from "hardhat/config";
+import { qorechainTestnetNetwork } from "./networks.js";
 
 // Load .env (PRIVATE_KEY) when present. Hardhat resolves configuration
 // variables from the environment or from `npx hardhat keystore set PRIVATE_KEY`.
@@ -26,8 +27,7 @@ export default defineConfig({
     qorechainTestnet: {
       type: "http",
       chainType: "l1",
-      chainId: 9800,
-      url: "https://evm-testnet.qore.host",
+      ...qorechainTestnetNetwork,
       accounts: [configVariable("PRIVATE_KEY")],
     },
     qorechain: {
