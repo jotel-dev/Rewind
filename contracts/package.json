@@ -6,7 +6,7 @@
   "description": "A Hardhat 3 project for the QoreChain EVM, with a helper that opens the EVM authorisation window.",
   "scripts": {
     "build": "hardhat build",
-    "test": "hardhat test",
+    "test": "hardhat test --config hardhat.test.config.ts",
     "window": "tsx --env-file=.env scripts/window.ts",
     "deploy:testnet": "hardhat ignition deploy ignition/modules/Counter.ts --network qorechainTestnet",
     "typecheck": "tsc --noEmit"

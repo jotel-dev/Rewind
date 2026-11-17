@@ -5,25 +5,29 @@ lets a buyer fund an agreement and release payment to its seller after fulfillme
 
 ## Status
 
-Early scaffold and planning stage, built by a solo developer for the QoreChain
+**contract and tests in progress**. Built by a solo developer for the QoreChain
 Developer Fest, Post-Quantum dApp track. Submission deadline: **2 December 2026,
 23:59 UTC**.
 
-The repository currently contains a sample `Counter` contract and a wallet demo.
-Escrow contracts, escrow UI, and escrow-specific PQC verification are not yet
-implemented. The scaffold includes helpers for QoreChain's ML-DSA-87 key
-registration and EVM authorization windows; these are distinct from verifying
-PQC signatures inside an escrow contract.
+The repository contains the Rewind native-asset escrow and a simulated-network
+test suite, alongside the inherited `Counter` sample and wallet demo. Rewind
+calls QoreChain's PQC precompiles for buyer-authorized release and refund; local
+tests use a deliberately forgeable test double, not real ML-DSA-87 verification.
+The four-output key-status interface and real signatures still need testnet
+validation. The escrow UI is pending. EVM authorization windows remain separate
+from the contract's per-agreement PQC authorization.
 
-## Planned features
+## Features and remaining work
 
-- Buyer/seller agreements with states `Created`, `Funded`, `Fulfilled`,
-  `Released`, `Refunded`, and `Expired`.
-- Funding, fulfillment confirmation, payment release, refunds, and expiry with
-  explicit transition rules and one terminal state per agreement.
+- Buyer/seller agreements with states `None`, `Funded`, `Fulfilled`, `Released`,
+  and `Refunded`. Creation immediately funds an agreement; an unfulfilled
+  agreement becomes refundable after its deadline.
+- Seller fulfillment, buyer-authorized release/refund, and one terminal state
+  per agreement. A fulfilled agreement has no unilateral timeout refund.
 - Payments restricted to the stored buyer and seller, with no admin withdrawal.
 - Wallet connection and clear PQC key/window readiness information.
 - A small escrow contract with tests for every function and payment path.
+- Remaining work: escrow UI and testnet validation of real PQC signatures.
 
 ## Tech stack and layout
 
@@ -43,29 +47,35 @@ The inherited scaffold also includes mainnet configuration; do not use it for Re
 
 ## Setup
 
-Prerequisites: Node.js 22 or later, pnpm, and a funded QoreChain testnet account
+Prerequisites: Node.js 22 or later, npm, and a funded QoreChain testnet account
 for on-chain work. Run installation separately in each project directory; there
 is no root package or workspace command. Installation commands below are for
 local setup and were not run as part of the initial documentation task.
 
 ```sh
 cd contracts
-pnpm install
-pnpm build
-pnpm test
-pnpm typecheck
+npm install
+npm run build
+npm test
+npm run typecheck
 ```
+
+`npm test` uses `contracts/hardhat.test.config.ts`, which defines only a simulated
+network and does not load environment files or deployment credentials.
+For an offline or restricted build, the optional process variable
+`REWIND_SOLC_PATH` can point to an existing Solidity 0.8.28 binary or soljson file;
+otherwise Hardhat uses its normal compiler discovery.
 
 From a separate terminal at the repository root:
 
 ```sh
 cd web
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
-The frontend runs at `http://localhost:5173`. In `web/`, `pnpm build` type-checks
-and builds the app; `pnpm preview` previews the build.
+The frontend runs at `http://localhost:5173`. In `web/`, `npm run build` type-checks
+and builds the app; `npm run preview` previews the build.
 
 ### Local configuration
 
@@ -92,15 +102,15 @@ variables: these are exposed to the browser.
 From `contracts/`, after configuring the deployer and its matching PQC credentials:
 
 ```sh
-pnpm window status
-pnpm window register
-pnpm window open
+npm run window status
+npm run window register
+npm run window open
 ```
 
 `status` reports the account, PQC key match, and window allowances. Registration
 is needed once per account. If another wallet already registered the account's
 PQC key, use that wallet to open the window. The helper also offers
-`pnpm window recovery-code`; it prints a new secret, so keep its output private
+`npm run window recovery-code`; it prints a new secret, so keep its output private
 and do not regenerate a code for an already configured account.
 
 The default window allows 600 blocks and five transactions, with a spending
@@ -109,12 +119,14 @@ and advances the account nonce. The starter README advises waiting about ten
 seconds for Ignition's confirmation requirement before deploying:
 
 ```sh
-pnpm deploy:testnet
+npm run deploy:testnet
 ```
 
-This runs `hardhat ignition deploy ignition/modules/Counter.ts --network
-qorechainTestnet` and deploys `Counter`, not an escrow. The Ignition `initial`
-parameter defaults to zero and can be overridden with `--parameters`.
+The `deploy:testnet` script invokes Hardhat Ignition with
+`ignition/modules/Counter.ts` on `qorechainTestnet` and deploys `Counter`, not an
+escrow. The Ignition `initial` parameter defaults to zero; pass an Ignition
+parameters file with `npm run deploy:testnet -- --parameters <path-to-parameters.json>`
+to override it.
 
 ### Frontend wallets and hosting
 

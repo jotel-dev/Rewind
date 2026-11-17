@@ -29,6 +29,8 @@ states. The escrow implementation and its transition rules are still to be built
 
 ## Coding rules
 
+- Use npm for package installation and scripts, from `contracts/` or `web/`
+  as appropriate; there is no root package script.
 - Work in small, focused commits when committing is requested.
 - Add a test for every contract function, including relevant authorization,
   state transitions, reverts, and payment behavior. Cover terminal-state
@@ -41,7 +43,7 @@ states. The escrow implementation and its transition rules are still to be built
 ## Repository
 
 - `contracts/`: Hardhat 3, Solidity, viem tests, Ignition deployment, and the
-  EVM authorization window helper. Run `pnpm test` from this directory.
+  EVM authorization window helper. Run `npm test` from this directory.
 - `web/`: Vite, React, TypeScript, wagmi, viem, and RainbowKit frontend.
 - The inherited scaffold includes mainnet configuration. Its presence is not
   authorization to use mainnet.
