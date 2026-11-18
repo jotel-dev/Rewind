@@ -6,8 +6,8 @@ import {
   QORECHAIN_REST_ENDPOINTS, evmWindowCost, evmWindowStatus, qorechainTestnet,
 } from "@qorechain/evm";
 import {
-  createPublicClient, createWalletClient, decodeErrorResult, decodeFunctionResult, defineChain,
-  encodeFunctionData, getAddress, hexToBytes, http, isAddress, isHex,
+  createPublicClient, createWalletClient, decodeFunctionResult, defineChain,
+  encodeFunctionData, formatEther, getAddress, hexToBytes, http, isAddress,
   parseAbi, parseEventLogs, toHex, zeroAddress, type Address, type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -16,6 +16,10 @@ import {
   actionCode, computeDigest, DEMO_AMOUNT, DEMO_TERMS_HASH, E2eError, oneHourFrom,
   parseArgs, REWIND_ADDRESS, signatureSummary, STATE_NAMES, type Action,
 } from "./e2e-utils.js";
+import {
+  DiagnosticError, diagnose, formatFailure, insufficientFunds, invalidVariable,
+  requiredVariable, sellerAddressStatus, sellerMismatch, type FailureContext, type Operation,
+} from "./e2e-errors.js";
 
 export const ABI = parseAbi([
   "function createAgreement(address seller, bytes32 termsHash, uint64 fulfilBy) payable returns (uint256 id)",
@@ -42,36 +46,19 @@ const chain = defineChain({
   testnet: true,
 });
 
-// Extract only a known custom-error name. Raw RPC errors can contain the entire
-// signature/calldata, so they must never reach logs or an uncaught stack trace.
-function revertName(error: unknown): string | undefined {
-  let current = error;
-  for (let depth = 0; depth < 8 && current !== null && typeof current === "object"; depth++) {
-    const candidate = current as { data?: unknown; cause?: unknown };
-    if (typeof candidate.data === "string" && isHex(candidate.data)) {
-      try { return decodeErrorResult({ abi: ABI, data: candidate.data }).errorName; } catch { /* no known error */ }
-    }
-    current = candidate.cause;
-  }
-  return undefined;
-}
-
 function configuredSeller(): Address {
-  const value = process.env.SELLER_ADDRESS?.trim();
-  if (!value || !isAddress(value) || getAddress(value) === zeroAddress) {
-    throw new E2eError("Set SELLER_ADDRESS to a valid nonzero EVM seller address.");
-  }
+  const value = requiredVariable("SELLER_ADDRESS", process.env.SELLER_ADDRESS);
+  if (!isAddress(value) || getAddress(value) === zeroAddress) throw invalidVariable("SELLER_ADDRESS");
   return getAddress(value);
 }
 
 async function signingAccount(index: 0 | 1): Promise<UnifiedAccount> {
-  const mnemonic = process.env.QORE_MNEMONIC?.trim();
-  if (!mnemonic) throw new E2eError("QORE_MNEMONIC is required for transaction steps.");
+  const mnemonic = requiredVariable("QORE_MNEMONIC", process.env.QORE_MNEMONIC);
   try {
     // Exactly the window.ts derivation, with the requested buyer/seller index.
     return await deriveUnifiedAccount(mnemonic, index);
   } catch {
-    throw new E2eError("Could not derive the signer. Check QORE_MNEMONIC locally; no credential details are logged.");
+    throw invalidVariable("QORE_MNEMONIC");
   }
 }
 
@@ -80,22 +67,56 @@ async function main(): Promise<void> {
   if ((process.env.QORE_NETWORK ?? "testnet") !== "testnet") {
     throw new E2eError("This runner supports QoreChain testnet only.");
   }
+  // Validate local credentials/address selection before any RPC access.
+  const signer = "send" in command ? await signingAccount(command.step === "fulfil" ? 1 : 0) : undefined;
+  const selectedSeller = command.step === "create" || command.step === "fulfil" ? configuredSeller() : undefined;
+  if (command.step === "fulfil" && getAddress(signer!.evm) !== selectedSeller) {
+    throw sellerMismatch(getAddress(signer!.evm), selectedSeller!);
+  }
+  let derivedAccounts: { buyer: UnifiedAccount; seller: UnifiedAccount } | undefined;
+  if (command.step === "addresses" || command.step === "balances") {
+    const [buyer, seller] = await Promise.all([signingAccount(0), signingAccount(1)]);
+    derivedAccounts = { buyer, seller };
+    if (command.step === "addresses") {
+      const status = sellerAddressStatus(getAddress(seller.evm), process.env.SELLER_ADDRESS);
+      console.log(`buyer 0x: ${getAddress(buyer.evm)}`);
+      console.log(`buyer qor1: ${buyer.cosmos}`);
+      console.log(`seller index 1 0x: ${getAddress(seller.evm)}`);
+      console.log(`SELLER_ADDRESS set: ${status.set}`);
+      console.log(`SELLER_ADDRESS valid: ${status.valid}`);
+      console.log(`SELLER_ADDRESS matches: ${status.matches}`);
+      return;
+    }
+  }
   // No Hardhat import, environment-file access, deployment, or automatic retry.
   const transport = () => http(qorechainTestnetNetwork.url, { retryCount: 0 });
   const client = createPublicClient({ chain, transport: transport() });
-  if (await client.getChainId() !== 9800) throw new E2eError("RPC chain ID is not 9800. Stopping.");
-  const code = await client.getCode({ address: REWIND_ADDRESS });
+  const remote = <T>(operation: Operation, work: () => Promise<T>, extra: Partial<FailureContext> = {}) =>
+    diagnose(work, { operation, endpoint: qorechainTestnetNetwork.url, abi: ABI, ...extra });
+  if (await remote("connection", () => client.getChainId()) !== 9800) throw new E2eError("RPC chain ID is not 9800. Stopping.");
+  if (command.step === "balances") {
+    const buyer = getAddress(derivedAccounts!.buyer.evm);
+    const seller = getAddress(derivedAccounts!.seller.evm);
+    const [buyerBalance, sellerBalance] = await Promise.all([
+      remote("read", () => client.getBalance({ address: buyer })),
+      remote("read", () => client.getBalance({ address: seller })),
+    ]);
+    console.log(`buyer ${buyer}: ${formatEther(buyerBalance)} QOR`);
+    console.log(`seller index 1 ${seller}: ${formatEther(sellerBalance)} QOR`);
+    return;
+  }
+  const code = await remote("read", () => client.getCode({ address: REWIND_ADDRESS }));
   if (!code || code === "0x") throw new E2eError("No contract code exists at the configured Rewind deployment.");
 
   async function agreement(id: bigint, blockNumber?: bigint) {
-    return client.readContract({ address: REWIND_ADDRESS, abi: ABI, functionName: "getAgreement", args: [id], blockNumber });
+    return remote("read", () => client.readContract({ address: REWIND_ADDRESS, abi: ABI, functionName: "getAgreement", args: [id], blockNumber }));
   }
 
   async function digest(id: bigint, action: Action, validUntil: bigint) {
     const current = await agreement(id);
-    const value = await client.readContract({
+    const value = await remote("read", () => client.readContract({
       address: REWIND_ADDRESS, abi: ABI, functionName: "digestFor", args: [id, actionCode(action), validUntil],
-    });
+    }));
     if (value !== computeDigest({
       chainId: 9800n, contract: REWIND_ADDRESS, id, action, buyer: current.buyer,
       seller: current.seller, amount: current.amount, termsHash: current.termsHash, validUntil,
@@ -105,7 +126,7 @@ async function main(): Promise<void> {
 
   if (command.step === "state") {
     const [current, balance] = await Promise.all([
-      agreement(command.id), client.getBalance({ address: REWIND_ADDRESS }),
+      agreement(command.id), remote("read", () => client.getBalance({ address: REWIND_ADDRESS })),
     ]);
     console.log(`agreement ID: ${command.id}`);
     console.log(`buyer: ${current.buyer}`);
@@ -118,7 +139,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const now = (await client.getBlock()).timestamp;
+  const now = (await remote("read", () => client.getBlock())).timestamp;
   if (command.step === "digest") {
     const validUntil = oneHourFrom(now);
     console.log(`validUntil: ${validUntil}`);
@@ -127,7 +148,7 @@ async function main(): Promise<void> {
   }
 
   const role = command.step === "fulfil" ? "Seller (index 1)" : "Buyer (index 0)";
-  const signer = await signingAccount(command.step === "fulfil" ? 1 : 0);
+  if (!signer) throw new E2eError("A transaction signer is required.");
   const sender = getAddress(signer.evm);
   let data: Hex;
   let value = 0n;
@@ -135,7 +156,7 @@ async function main(): Promise<void> {
   let nextState: string;
 
   if (command.step === "create") {
-    const seller = configuredSeller();
+    const seller = selectedSeller!;
     if (seller === sender) throw new E2eError("SELLER_ADDRESS must differ from the buyer.");
     const fulfilBy = oneHourFrom(now);
     value = DEMO_AMOUNT;
@@ -148,14 +169,11 @@ async function main(): Promise<void> {
     const current = await agreement(id);
     console.log(`current state: ${STATE_NAMES[current.state] ?? "Unknown"}`);
     if (command.step === "fulfil") {
-      if (sender !== configuredSeller()) {
-        throw new E2eError("Seller account at m/44'/60'/0'/0/1 does not match SELLER_ADDRESS. No transaction sent.");
-      }
-      if (sender !== getAddress(current.seller)) throw new E2eError("Index-1 seller does not match the agreement's stored seller.");
+      if (sender !== getAddress(current.seller)) throw new DiagnosticError("ADDRESS_MISMATCH", `Derived seller: ${sender}; stored seller: ${getAddress(current.seller)}. No transaction sent.`);
       data = encodeFunctionData({ abi: ABI, functionName: "markFulfilled", args: [id] });
       nextState = "Fulfilled";
     } else {
-      if (sender !== getAddress(current.buyer)) throw new E2eError("Index-0 buyer does not match the agreement's stored buyer.");
+      if (sender !== getAddress(current.buyer)) throw new DiagnosticError("ADDRESS_MISMATCH", `Derived buyer: ${sender}; stored buyer: ${getAddress(current.buyer)}. No transaction sent.`);
       if (command.step === "refund" && now <= current.fulfilBy) {
         throw new E2eError("Refund is not available yet: the chain timestamp must be greater than fulfilBy.");
       }
@@ -173,14 +191,20 @@ async function main(): Promise<void> {
     }
   }
 
+  const senderBalance = await remote("read", () => client.getBalance({ address: sender }));
+  if (senderBalance <= value) {
+    const failure = insufficientFunds(sender, senderBalance);
+    if (command.send) throw failure;
+    // Preserve dry simulation even without gas funds, but make the funding gap explicit.
+    console.warn(formatFailure(failure));
+  }
   let simulated: Hex | undefined;
   try {
-    simulated = (await client.call({ account: sender, to: REWIND_ADDRESS, data, value })).data;
+    simulated = (await remote("simulation", () => client.call({ account: sender, to: REWIND_ADDRESS, data, value }), { address: sender, balance: senderBalance })).data;
     console.log("simulation: succeeded");
   } catch (error) {
     console.log("simulation: failed");
-    const name = revertName(error);
-    throw new E2eError(`${role} simulation failed${name ? ` (${name})` : ""}. Check agreement state, deadlines and PQC authorization. The sender also needs its own funding and live EVM window. No transaction sent.`);
+    throw error;
   }
 
   if (!command.send) {
@@ -198,9 +222,9 @@ async function main(): Promise<void> {
   // to a different signer. Each invocation can broadcast at most one transaction.
   const rest = QORECHAIN_REST_ENDPOINTS[9800];
   const [window, pqc, balance] = await Promise.all([
-    evmWindowStatus({ rest, address: signer.cosmos }),
-    fetchPqcStatus({ rest, address: signer.cosmos }),
-    client.getBalance({ address: sender }),
+    remote("read", () => evmWindowStatus({ rest, address: signer.cosmos }), { endpoint: rest }),
+    remote("read", () => fetchPqcStatus({ rest, address: signer.cosmos }), { endpoint: rest }),
+    remote("read", () => client.getBalance({ address: sender })),
   ]);
   if (!pqc.registered) throw new E2eError(`${role} needs its own registered ML-DSA-87 key. No transaction sent.`);
   if (isRegisteredPqcKey(pqc, signer.pqc.publicKey) !== true) {
@@ -212,17 +236,12 @@ async function main(): Promise<void> {
   if (window.nativeOnly || (window.allowedTargets.length > 0 && !window.allowedTargets.some((target) => target.toLowerCase() === REWIND_ADDRESS.toLowerCase()))) {
     throw new E2eError(`${role} EVM window does not permit calls to this Rewind contract. No transaction sent.`);
   }
-  if (balance <= value) throw new E2eError(`${role} needs testnet QOR to cover value plus gas. No transaction sent.`);
-  const fees = await client.estimateFeesPerGas();
-  let estimated: bigint;
-  try {
-    estimated = await client.estimateGas({ account: sender, to: REWIND_ADDRESS, data, value, ...fees });
-  } catch {
-    throw new E2eError(`${role} gas estimation failed. Check funding and its EVM window. No transaction sent.`);
-  }
+  if (balance <= value) throw insufficientFunds(sender, balance);
+  const fees = await remote("read", () => client.estimateFeesPerGas());
+  const estimated = await remote("gas estimation", () => client.estimateGas({ account: sender, to: REWIND_ADDRESS, data, value, ...fees }), { address: sender, balance });
   const gas = (estimated * 120n + 99n) / 100n;
   const costWei = value + gas * fees.maxFeePerGas;
-  if (balance < costWei) throw new E2eError(`${role} needs more testnet QOR for the maximum transaction cost. No transaction sent.`);
+  if (balance < costWei) throw insufficientFunds(sender, balance);
   if (window.remainingValue < evmWindowCost({ value, gas, maxFeePerGas: fees.maxFeePerGas })) {
     throw new E2eError(`${role} EVM window has insufficient value-plus-fee allowance. No transaction sent.`);
   }
@@ -231,19 +250,9 @@ async function main(): Promise<void> {
   const wallet = createWalletClient({
     account: privateKeyToAccount(signer.privateKey as Hex), chain, transport: transport(),
   });
-  let hash: Hex;
-  try {
-    hash = await wallet.sendTransaction({ chain, to: REWIND_ADDRESS, data, value, gas, ...fees });
-  } catch {
-    throw new E2eError(`${role} broadcast failed or its outcome is unknown. Check funding, window and on-chain history before retrying; no automatic retry was made.`);
-  }
+  const hash = await remote("broadcast", () => wallet.sendTransaction({ chain, to: REWIND_ADDRESS, data, value, gas, ...fees }), { address: sender, balance });
   console.log(`transaction hash: ${hash}`);
-  let receipt;
-  try {
-    receipt = await client.waitForTransactionReceipt({ hash, timeout: 120_000 });
-  } catch {
-    throw new E2eError("Receipt unavailable. Use the printed hash to check the transaction; do not blindly repeat a transaction step.");
-  }
+  const receipt = await remote("receipt", () => client.waitForTransactionReceipt({ hash, timeout: 120_000 }));
   console.log(`gas used: ${receipt.gasUsed}`);
   if (receipt.status !== "success") throw new E2eError("Transaction reverted on-chain. Gas and window allowances may have been consumed.");
   if (command.step === "create") {
@@ -262,7 +271,7 @@ async function main(): Promise<void> {
 // Importing pure helpers/tests never starts the testnet runner or loads .env.
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error: unknown) => {
-    console.error(error instanceof E2eError ? error.message : "E2E step failed. Check the testnet connection and configuration; raw errors are suppressed to protect signing data.");
+    console.error(formatFailure(error, { abi: ABI }));
     process.exitCode = 1;
   });
 }

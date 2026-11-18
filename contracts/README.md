@@ -166,8 +166,11 @@ network as part of this change.
 
 Run **one step per invocation** from `contracts/`. The underlying command is
 `tsx --env-file=.env scripts/e2e.ts <step>`; the npm alias is shown below.
-Configure `QORE_MNEMONIC` and `SELLER_ADDRESS` locally. Only their names belong
-in documentation; never commit their values. `QORE_NETWORK`, if set, must select
+Configure `QORE_MNEMONIC` locally for address, balance and transaction steps.
+`SELLER_ADDRESS` is required for create and fulfil; the address report can also
+show whether it is unset or invalid. State and digest reads need neither variable.
+Only variable names belong in documentation; never commit their values.
+`QORE_NETWORK`, if set, must select
 testnet. The script itself does not open environment files or import Hardhat's
 deployment configuration.
 
@@ -177,6 +180,8 @@ or from the agreement's stored seller. There is no fallback signer.
 
 | Step | Command | Effect |
 | --- | --- | --- |
+| Addresses | `npm run e2e -- addresses` | Offline: print the index-0 buyer's 0x/qor1 addresses, the index-1 seller's 0x address, and whether SELLER_ADDRESS is set, valid and matching. No credentials or RPC calls. |
+| Balances | `npm run e2e -- balances` | Read the derived buyer and seller balances from the testnet RPC and print them in QOR with their public addresses. No contract call or transaction. |
 | Preview creation | `npm run e2e -- create --dry` | Simulate funding without creating an agreement; any printed ID is only predicted. |
 | Create | `npm run e2e -- create` | Simulate, check readiness, then send 1,000,000,000,000,000 wei to create an agreement. Record its mined agreement ID. |
 | Preview fulfilment | `npm run e2e -- fulfil <id> --dry` | Simulate using the index-1 seller; no transaction is sent. |
@@ -191,6 +196,34 @@ or from the agreement's stored seller. There is no fallback signer.
 **Create and fulfil send by default.** Use `--dry` to prevent broadcasting.
 **Release and refund require `--send`.** They also accept explicit `--dry`.
 Contradictory, repeated or unknown flags are rejected.
+Addresses and balances accept no ID and no `--dry` or `--send` flag.
+
+### Diagnosing a failed step
+
+Local required-variable and seller-selection checks run before RPC access.
+Diagnostics use categories and public facts rather than raw provider messages:
+
+| Category | Information shown |
+| --- | --- |
+| `ENV_MISSING` / `ENV_INVALID` | The variable name only, such as QORE_MNEMONIC or SELLER_ADDRESS; never its value. |
+| `ADDRESS_MISMATCH` | Both validated public addresses, including the derived index-1 seller and configured seller. |
+| `RPC_UNREACHABLE` | The configured RPC/REST hostname only; no credentials, paths, query strings or request body. |
+| `RPC_REJECTED` / `RPC_REQUEST_FAILED` | RPC rejection or read/send failure, its host and an HTTP status when available; provider text is suppressed. |
+| `CONTRACT_REVERTED` | A decoded Rewind custom error from a read, for example AgreementNotFound during getAgreement. |
+| `SIMULATION_REVERTED` | A decoded Rewind custom error name, such as OnlySeller. Unknown revert strings are suppressed. |
+| `INSUFFICIENT_FUNDS` | The sender's public address and balance in QOR and wei, when available. |
+| `INPUT` / `UNEXPECTED` | Safe local validation text or a category indicating unavailable structured metadata. |
+
+Revert decoding handles both raw nested RPC data and viem's decoded custom-error
+metadata. It never prints custom-error arguments, arbitrary revert strings,
+signatures, calldata, request bodies or complete error objects. Unknown failures
+remain categorized without guessing a cause.
+
+If a dry run finds no gas funds, it prints a categorized funding warning and
+continues the read-only simulation. An actual send stops for insufficient funds.
+Use `addresses` to diagnose derivation/configuration offline, then `balances`
+when you want to check funding. The balances step always uses the derived index-1
+seller, independently of SELLER_ADDRESS.
 
 Creation uses the seller from the environment, terms hash
 `keccak256("rewind-demo-order-1")` and a fulfilment deadline one hour after the
@@ -254,7 +287,9 @@ scripts/window.ts                    EVM window helper (npm run window)
 scripts/probe-pqc.ts                 read-only key-status probe
 scripts/e2e.ts                       manual testnet flow (one step per run)
 scripts/e2e-utils.ts                 pure CLI, digest, expiry and output helpers
+scripts/e2e-errors.ts                categorized diagnostics with sanitized output
 test/e2e-utils.ts                    offline tests for the end-to-end helpers
+test/e2e-errors.ts                   offline error categorization and safety tests
 scripts/signing-notes/README.md       client signing flow (no signing code)
 networks.ts                         shared public testnet URL and chain ID
 hardhat.config.ts                    deployment compiler/network settings

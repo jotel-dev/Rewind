@@ -12,6 +12,8 @@ const MAX_UINT64 = (1n << 64n) - 1n;
 export class E2eError extends Error {}
 export type Action = "release" | "refund";
 export type E2eCommand =
+  | { step: "addresses" }
+  | { step: "balances" }
   | { step: "create"; send: boolean }
   | { step: "fulfil" | Action; id: bigint; send: boolean }
   | { step: "digest"; id: bigint; action: Action }
@@ -28,14 +30,15 @@ export function parseArgs(argv: readonly string[]): E2eCommand {
     throw new E2eError("--dry and --send cannot be combined.");
   }
   const step = args[0];
-  if (!["create", "fulfil", "digest", "release", "refund", "state"].includes(step)) {
-    throw new E2eError("Usage: e2e.ts create | fulfil <id> | digest <id> <release|refund> | release <id> | refund <id> | state <id>");
+  if (!["addresses", "balances", "create", "fulfil", "digest", "release", "refund", "state"].includes(step)) {
+    throw new E2eError("Usage: e2e.ts addresses | balances | create | fulfil <id> | digest <id> <release|refund> | release <id> | refund <id> | state <id>");
   }
-  const expected = step === "create" ? 1 : step === "digest" ? 3 : 2;
+  const expected = step === "create" || step === "addresses" || step === "balances" ? 1 : step === "digest" ? 3 : 2;
   if (args.length !== expected) throw new E2eError("Wrong argument count for this step.");
-  if ((step === "digest" || step === "state") && flags.length !== 0) {
+  if ((step === "digest" || step === "state" || step === "addresses" || step === "balances") && flags.length !== 0) {
     throw new E2eError("Read-only steps do not accept --send or --dry.");
   }
+  if (step === "addresses" || step === "balances") return { step };
   const send = flags.includes("--send") || (!flags.includes("--dry") && (step === "create" || step === "fulfil"));
   if (step === "create") return { step, send };
   if (!/^[0-9]+$/.test(args[1])) throw new E2eError("Agreement ID must be a positive uint256 integer.");
