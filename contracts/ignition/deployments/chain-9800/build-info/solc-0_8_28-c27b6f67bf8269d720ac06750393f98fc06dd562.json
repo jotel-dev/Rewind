@@ -1,0 +1,52 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-c27b6f67bf8269d720ac06750393f98fc06dd562",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.22.0"
+  },
+  "userSourceNameMap": {
+    "contracts/Rewind.sol": "project/contracts/Rewind.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/interfaces/IQorePQC.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\n\n/// @notice QoreChain PQC precompiles: verification at 0x0A01, key status at 0x0A02.\n/// @dev The installed @qorechain/evm 0.14.0 ABI has only three pqcKeyStatus\n/// outputs. This four-output form follows the official QoreChain docs and must\n/// still be confirmed on testnet: https://docs.qorechain.io/developer-guide/evm-precompiles/\ninterface IQorePQC {\n    function pqcVerify(bytes calldata pubkey, bytes calldata signature, bytes calldata message)\n        external view returns (bool valid);\n\n    function pqcKeyStatus(address account)\n        external view returns (bool registered, uint8 algorithmId, bytes memory pubkey, bool possessionProven);\n}\n"
+      },
+      "project/contracts/Rewind.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.28;\n\nimport {IQorePQC} from \"./interfaces/IQorePQC.sol\";\n\n/// @title Rewind\n/// @notice Native-asset escrow with buyer-authorized ML-DSA-87 settlement.\n/// @dev EVM window authorization is separate from the per-agreement signature\n/// verified here. A fulfilled agreement has no unilateral timeout refund.\ncontract Rewind {\n    enum State { None, Funded, Fulfilled, Released, Refunded }\n\n    struct Agreement {\n        address buyer;\n        address seller;\n        uint256 amount;\n        bytes32 termsHash;\n        uint64 fulfilBy;\n        State state;\n    }\n\n    error ZeroAmount();\n    error InvalidSeller();\n    error InvalidDeadline();\n    error AgreementNotFound();\n    error OnlyBuyer();\n    error OnlySeller();\n    error InvalidState();\n    error FulfilmentDeadlinePassed();\n    error RefundNotAvailable();\n    error AuthorizationExpired();\n    error PqcKeyNotRegistered();\n    error PqcPossessionNotProven();\n    error UnsupportedPqcAlgorithm();\n    error InvalidPqcPublicKey();\n    error InvalidPqcSignature();\n    error InvalidAction();\n    error PaymentFailed();\n    error ReentrantCall();\n\n    event AgreementCreated(\n        uint256 indexed id, address indexed buyer, address indexed seller,\n        uint256 amount, bytes32 termsHash, uint64 fulfilBy\n    );\n    event AgreementFulfilled(uint256 indexed id);\n    event AgreementReleased(uint256 indexed id, address indexed seller, uint256 amount);\n    event AgreementRefunded(uint256 indexed id, address indexed buyer, uint256 amount);\n\n    IQorePQC private constant PQC_VERIFY = IQorePQC(0x0000000000000000000000000000000000000a01);\n    IQorePQC private constant PQC_STATUS = IQorePQC(0x0000000000000000000000000000000000000a02);\n    uint8 private constant RELEASE = 1;\n    uint8 private constant REFUND = 2;\n\n    mapping(uint256 => Agreement) private agreements;\n    uint256 private nextId = 1;\n    bool private entered;\n\n    modifier nonReentrant() {\n        if (entered) revert ReentrantCall();\n        entered = true;\n        _;\n        entered = false;\n    }\n\n    function createAgreement(address seller, bytes32 termsHash, uint64 fulfilBy)\n        external payable nonReentrant returns (uint256 id)\n    {\n        if (msg.value == 0) revert ZeroAmount();\n        if (seller == address(0) || seller == msg.sender) revert InvalidSeller();\n        if (fulfilBy <= block.timestamp) revert InvalidDeadline();\n\n        id = nextId++;\n        agreements[id] = Agreement(msg.sender, seller, msg.value, termsHash, fulfilBy, State.Funded);\n        emit AgreementCreated(id, msg.sender, seller, msg.value, termsHash, fulfilBy);\n    }\n\n    function markFulfilled(uint256 id) external nonReentrant {\n        Agreement storage agreement = _agreement(id);\n        if (msg.sender != agreement.seller) revert OnlySeller();\n        if (agreement.state != State.Funded) revert InvalidState();\n        if (block.timestamp >= agreement.fulfilBy) revert FulfilmentDeadlinePassed();\n\n        agreement.state = State.Fulfilled;\n        emit AgreementFulfilled(id);\n    }\n\n    function release(uint256 id, uint256 validUntil, bytes calldata pqSignature) external nonReentrant {\n        Agreement storage agreement = _agreement(id);\n        if (msg.sender != agreement.buyer) revert OnlyBuyer();\n        if (agreement.state != State.Fulfilled) revert InvalidState();\n        _authorize(agreement, id, RELEASE, validUntil, pqSignature);\n\n        agreement.state = State.Released;\n        (bool success,) = agreement.seller.call{value: agreement.amount}(\"\");\n        if (!success) revert PaymentFailed();\n        emit AgreementReleased(id, agreement.seller, agreement.amount);\n    }\n\n    function refund(uint256 id, uint256 validUntil, bytes calldata pqSignature) external nonReentrant {\n        Agreement storage agreement = _agreement(id);\n        if (msg.sender != agreement.buyer) revert OnlyBuyer();\n        if (agreement.state != State.Funded) revert InvalidState();\n        if (block.timestamp <= agreement.fulfilBy) revert RefundNotAvailable();\n        _authorize(agreement, id, REFUND, validUntil, pqSignature);\n\n        agreement.state = State.Refunded;\n        (bool success,) = agreement.buyer.call{value: agreement.amount}(\"\");\n        if (!success) revert PaymentFailed();\n        emit AgreementRefunded(id, agreement.buyer, agreement.amount);\n    }\n\n    function getAgreement(uint256 id) external view returns (Agreement memory) {\n        return _agreement(id);\n    }\n\n    /// @notice State/deadline eligibility; the buyer still needs valid PQC authorization.\n    function isRefundable(uint256 id) external view returns (bool) {\n        Agreement storage agreement = _agreement(id);\n        return agreement.state == State.Funded && block.timestamp > agreement.fulfilBy;\n    }\n\n    /// @notice Sign these exact 32 bytes with ML-DSA-87, without an Ethereum prefix.\n    /// @dev action is uint8: 1 = release, 2 = refund; validUntil is uint256.\n    function digestFor(uint256 id, uint8 action, uint256 validUntil) external view returns (bytes32) {\n        if (action != RELEASE && action != REFUND) revert InvalidAction();\n        return _digest(_agreement(id), id, action, validUntil);\n    }\n\n    function _agreement(uint256 id) private view returns (Agreement storage agreement) {\n        agreement = agreements[id];\n        if (agreement.state == State.None) revert AgreementNotFound();\n    }\n\n    function _digest(Agreement storage agreement, uint256 id, uint8 action, uint256 validUntil)\n        private view returns (bytes32)\n    {\n        return keccak256(abi.encode(\n            \"REWIND_V1\", block.chainid, address(this), id, action,\n            agreement.buyer, agreement.seller, agreement.amount, agreement.termsHash, validUntil\n        ));\n    }\n\n    function _authorize(\n        Agreement storage agreement, uint256 id, uint8 action, uint256 validUntil, bytes calldata pqSignature\n    ) private view {\n        if (block.timestamp > validUntil) revert AuthorizationExpired();\n        (bool registered, uint8 algorithmId, bytes memory pubkey, bool possessionProven) =\n            PQC_STATUS.pqcKeyStatus(agreement.buyer);\n        if (!registered) revert PqcKeyNotRegistered();\n        if (!possessionProven) revert PqcPossessionNotProven();\n        if (algorithmId != 1) revert UnsupportedPqcAlgorithm();\n        if (pubkey.length != 2592) revert InvalidPqcPublicKey();\n        if (pqSignature.length != 4627) revert InvalidPqcSignature();\n        bytes memory message = abi.encodePacked(_digest(agreement, id, action, validUntil));\n        if (!PQC_VERIFY.pqcVerify(pubkey, pqSignature, message)) revert InvalidPqcSignature();\n    }\n}\n"
+      }
+    }
+  }
+}
