@@ -46,6 +46,19 @@ const chain = defineChain({
   testnet: true,
 });
 
+/** Select public address fields only; both cosmos forms come from the same SDK derivation. */
+export function publicAddressLines(
+  buyer: Pick<UnifiedAccount, "evm" | "cosmos">,
+  seller: Pick<UnifiedAccount, "evm" | "cosmos">,
+): string[] {
+  return [
+    `buyer 0x: ${getAddress(buyer.evm)}`,
+    `buyer qor1: ${buyer.cosmos}`,
+    `seller index 1 0x: ${getAddress(seller.evm)}`,
+    `seller index 1 qor1: ${seller.cosmos}`,
+  ];
+}
+
 function configuredSeller(): Address {
   const value = requiredVariable("SELLER_ADDRESS", process.env.SELLER_ADDRESS);
   if (!isAddress(value) || getAddress(value) === zeroAddress) throw invalidVariable("SELLER_ADDRESS");
@@ -79,9 +92,7 @@ async function main(): Promise<void> {
     derivedAccounts = { buyer, seller };
     if (command.step === "addresses") {
       const status = sellerAddressStatus(getAddress(seller.evm), process.env.SELLER_ADDRESS);
-      console.log(`buyer 0x: ${getAddress(buyer.evm)}`);
-      console.log(`buyer qor1: ${buyer.cosmos}`);
-      console.log(`seller index 1 0x: ${getAddress(seller.evm)}`);
+      for (const line of publicAddressLines(buyer, seller)) console.log(line);
       console.log(`SELLER_ADDRESS set: ${status.set}`);
       console.log(`SELLER_ADDRESS valid: ${status.valid}`);
       console.log(`SELLER_ADDRESS matches: ${status.matches}`);

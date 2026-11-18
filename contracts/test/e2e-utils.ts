@@ -1,16 +1,33 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { evmToQor, qoreAddresses } from "@qorechain/sdk";
 import {
   decodeFunctionResult, encodeAbiParameters, encodeFunctionData, hexToBytes,
   keccak256, parseAbiParameters, size, toHex, type Hex,
 } from "viem";
-import { ABI } from "../scripts/e2e.js";
+import { ABI, publicAddressLines } from "../scripts/e2e.js";
 import {
   actionCode, computeDigest, DEMO_AMOUNT, DEMO_TERMS_HASH, MAX_UINT256,
   oneHourFrom, parseArgs, REWIND_ADDRESS, signatureSummary, type DigestInput,
 } from "../scripts/e2e-utils.js";
 
 describe("E2E pure helpers (no RPC or environment loading)", () => {
+  it("reports buyer and seller EVM/qor1 addresses without other account fields", () => {
+    const buyerEvm = "0x0000000000000000000000000000000000000011";
+    const sellerEvm = "0x0000000000000000000000000000000000000022";
+    const taint = "SENSITIVE_TEST_MARKER_DO_NOT_ECHO";
+    const buyer = { ...qoreAddresses({ evm: buyerEvm }), mnemonic: taint, privateKey: taint };
+    const seller = { ...qoreAddresses({ evm: sellerEvm }), mnemonic: taint, privateKey: taint };
+    const lines = publicAddressLines(buyer, seller);
+    assert.deepEqual(lines, [
+      `buyer 0x: ${buyerEvm}`,
+      `buyer qor1: ${evmToQor(buyerEvm)}`,
+      `seller index 1 0x: ${sellerEvm}`,
+      `seller index 1 qor1: ${evmToQor(sellerEvm)}`,
+    ]);
+    assert.equal(lines.join("\n").includes(taint), false);
+  });
+
   it("parses create and fulfil as send steps by default", () => {
     assert.deepEqual(parseArgs(["create"]), { step: "create", send: true });
     assert.deepEqual(parseArgs(["fulfil", "7"]), { step: "fulfil", id: 7n, send: true });
