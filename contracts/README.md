@@ -157,6 +157,79 @@ Use action `1` for release and `2` for refund. Do not prefix or hash the digest
 again. See [signing notes](scripts/signing-notes/README.md) for details. No QoreX
 signing API is assumed.
 
+## Testnet end-to-end runner
+
+The manual runner targets chain ID **9800** and the supplied Rewind deployment
+`0x775BbF36986FaBC54b64955c1D9b8EdB388E7c20`. It checks the RPC chain ID and that
+contract code exists before proceeding. It has not been executed against the
+network as part of this change.
+
+Run **one step per invocation** from `contracts/`. The underlying command is
+`tsx --env-file=.env scripts/e2e.ts <step>`; the npm alias is shown below.
+Configure `QORE_MNEMONIC` and `SELLER_ADDRESS` locally. Only their names belong
+in documentation; never commit their values. `QORE_NETWORK`, if set, must select
+testnet. The script itself does not open environment files or import Hardhat's
+deployment configuration.
+
+The buyer uses `m/44'/60'/0'/0/0`. The seller uses `m/44'/60'/0'/0/1` from the same
+mnemonic. Fulfilment stops if that derived seller differs from `SELLER_ADDRESS`
+or from the agreement's stored seller. There is no fallback signer.
+
+| Step | Command | Effect |
+| --- | --- | --- |
+| Preview creation | `npm run e2e -- create --dry` | Simulate funding without creating an agreement; any printed ID is only predicted. |
+| Create | `npm run e2e -- create` | Simulate, check readiness, then send 1,000,000,000,000,000 wei to create an agreement. Record its mined agreement ID. |
+| Preview fulfilment | `npm run e2e -- fulfil <id> --dry` | Simulate using the index-1 seller; no transaction is sent. |
+| Fulfil | `npm run e2e -- fulfil <id>` | Simulate and then send from the index-1 seller. |
+| Digest | `npm run e2e -- digest <id> release` | Read and print the exact on-chain digest and expiry; use `refund` instead for the other action. |
+| Preview release | `npm run e2e -- release <id>` | Derive the buyer's PQC key as in `window.ts`, sign the exact digest bytes, and simulate only. |
+| Send release | `npm run e2e -- release <id> --send` | Simulate, check readiness, then send one buyer transaction. |
+| Preview refund | `npm run e2e -- refund <id>` | Sign and simulate only; requires an unfulfilled agreement past its deadline. |
+| Send refund | `npm run e2e -- refund <id> --send` | Simulate, check readiness, then send one buyer transaction. |
+| State | `npm run e2e -- state <id>` | Print all stored agreement fields and the contract's native balance in wei. |
+
+**Create and fulfil send by default.** Use `--dry` to prevent broadcasting.
+**Release and refund require `--send`.** They also accept explicit `--dry`.
+Contradictory, repeated or unknown flags are rejected.
+
+Creation uses the seller from the environment, terms hash
+`keccak256("rewind-demo-order-1")` and a fulfilment deadline one hour after the
+latest block timestamp. Digest, release and refund each calculate a fresh
+`validUntil` one hour after the latest block timestamp. A digest printed in an
+earlier invocation is informational: settlement reads and signs a fresh digest
+using the expiry printed in that settlement invocation. No digest or signature
+is persisted to disk.
+
+The buyer's ML-DSA-87 key is derived with `deriveUnifiedAccount(mnemonic, 0)` and
+the exact 32 digest bytes are signed with `pqcSign`. Output contains only the
+signature's byte length and first eight bytes, never the whole signature or a
+signing credential. Raw RPC errors and calldata are suppressed; recognized
+contract-error names may be shown.
+
+Every transaction step first runs `eth_call`; a failed simulation stops the
+step before sending. Before broadcasting, the runner checks the sender's
+registration/key match, native balance and live EVM window (including its
+remaining transaction, block, target and value-plus-fee allowances), then
+estimates gas and fees. It uses a 20% gas headroom and checks the corresponding
+maximum cost. Simulations and checks do not reserve that allowance, so chain
+state can still change before inclusion.
+
+**The seller needs its own testnet QOR, registered ML-DSA-87 key and live EVM
+window.** The buyer's window does not cover index 1. A successful dry simulation
+does not prove these transaction-admission requirements. The runner never funds
+accounts, registers keys, opens windows or switches signers to work around them.
+
+A successful create/fulfil/release path consumes two buyer EVM transactions and
+one seller EVM transaction. Read-only and dry steps do not broadcast. To test
+refund, create a separate agreement, leave it unfulfilled and wait until the
+chain timestamp is strictly greater than its `fulfilBy`. Fulfilled or released
+agreements cannot be refunded.
+
+After broadcasting, the runner immediately prints the hash, then reports gas
+used and the state at the receipt's block. It does not automatically retry a
+broadcast. If the receipt or broadcast outcome is uncertain, check on-chain
+history and any printed hash before repeating a step, especially creation.
+
 ## Known limitations
 
 - No timeout after fulfilment: the buyer must authorize release; a fulfilled
@@ -179,6 +252,9 @@ test/probe-pqc.ts                    offline probe decoding/address tests
 ignition/modules/Rewind.ts           no-argument escrow deployment
 scripts/window.ts                    EVM window helper (npm run window)
 scripts/probe-pqc.ts                 read-only key-status probe
+scripts/e2e.ts                       manual testnet flow (one step per run)
+scripts/e2e-utils.ts                 pure CLI, digest, expiry and output helpers
+test/e2e-utils.ts                    offline tests for the end-to-end helpers
 scripts/signing-notes/README.md       client signing flow (no signing code)
 networks.ts                         shared public testnet URL and chain ID
 hardhat.config.ts                    deployment compiler/network settings
