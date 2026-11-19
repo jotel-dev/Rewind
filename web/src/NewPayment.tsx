@@ -1,10 +1,29 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useAccount } from "wagmi";
 import { encodeFunctionData, keccak256, parseEther, parseEventLogs, toHex, zeroAddress } from "viem";
 import { rewindAbi } from "./abi/rewind.js";
 import { CONTRACT } from "./config.js";
 import { Icon, Notice, TransactionStatus, useTransaction } from "./components.js";
-import { InputError, safeError, sameAddress, validatedParty } from "./lib.js";
+import { InputError, safeError, sameAddress, short, validatedParty } from "./lib.js";
+import { EscrowVault } from "./PaymentArtwork.js";
+import "./payments-glass.css";
+
+function checkSeller(seller: string, buyer: string | undefined) {
+  const address = validatedParty(seller.trim());
+  if (address === zeroAddress || sameAddress(buyer, address)) throw new InputError("The seller must be a nonzero address different from the buyer.");
+  return address;
+}
+function checkAmount(amount: string) {
+  if (!/^\d+(?:\.\d{1,18})?$/.test(amount) || parseEther(amount) <= 0n) throw new InputError("Enter a positive QOR amount with up to 18 decimal places.");
+}
+function checkDeadline(deadline: string) {
+  const date = new Date(deadline).getTime();
+  if (!Number.isFinite(date) || date <= Date.now()) throw new InputError("Choose a fulfilment deadline in the future.");
+  return date;
+}
+function fieldError(validate: () => unknown) {
+  try { validate(); return ""; } catch (error) { return safeError(error); }
+}
 
 function defaultDeadline() {
   const date = new Date(Date.now() + 3600_000);
@@ -19,12 +38,10 @@ export function NewPayment({ navigate }: { navigate: (path: string) => void }) {
   async function create(event: FormEvent) {
     event.preventDefault(); setError("");
     try {
-      const selectedSeller = validatedParty(seller.trim());
-      if (selectedSeller === zeroAddress || sameAddress(address, selectedSeller)) throw new InputError("The seller must be a nonzero address different from the buyer.");
-      if (!/^\d+(?:\.\d{1,18})?$/.test(amount) || parseEther(amount) <= 0n) throw new InputError("Enter a positive QOR amount with up to 18 decimal places.");
+      const selectedSeller = checkSeller(seller, address);
+      checkAmount(amount);
       if (!reference.trim()) throw new InputError("Add an order reference so you can identify the terms.");
-      const date = new Date(deadline).getTime();
-      if (!Number.isFinite(date) || date <= Date.now()) throw new InputError("Choose a fulfilment deadline in the future.");
+      const date = checkDeadline(deadline);
       const data = encodeFunctionData({ abi: rewindAbi, functionName: "createAgreement", args: [selectedSeller, keccak256(toHex(reference)), BigInt(Math.floor(date / 1000))] });
       const receipt = await tx.submit(data, parseEther(amount));
       if (receipt) {
@@ -35,27 +52,114 @@ export function NewPayment({ navigate }: { navigate: (path: string) => void }) {
       }
     } catch (failure) { setError(safeError(failure)); }
   }
-  return <>
-    <div className="page-heading"><div><p className="eyebrow">01 / NEW PAYMENT</p><h1>Make the terms.<br />Lock the funds.</h1><p className="lede">A clear agreement. Payment held in escrow.<br className="desktop-break" /> Released with your post-quantum authorisation.</p></div><div className="heading-note"><Icon name="shield" size={28} /><span className="mono">YOUR TERMS.<br />YOUR AUTHORISATION.</span></div></div>
-    <div className="create-grid">
-      <section className="panel form-panel" aria-labelledby="payment-form-heading">
-        <div className="panel-heading"><h2 id="payment-form-heading">Payment details</h2><span className="eyebrow">QOR / TESTNET</span></div>
-        <form onSubmit={create}>
-          <label htmlFor="seller">Seller address <span className="field-number">01</span></label>
-          <input id="seller" autoComplete="off" spellCheck={false} className="mono-input" placeholder="0x…" value={seller} onChange={(event) => setSeller(event.target.value)} required disabled={tx.busy || confirmedId !== undefined} aria-describedby="seller-help" />
-          <p className="field-help" id="seller-help">Only this address can mark fulfilment and receive a release.</p>
-          <div className="field-row"><div><label htmlFor="amount">Amount <span className="field-number">02</span></label><div className="input-unit"><input id="amount" inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} required disabled={tx.busy || confirmedId !== undefined} /><span className="mono">QOR</span></div><p className="field-help">Testnet tokens. Network fees are separate.</p></div><div><label htmlFor="deadline">Fulfilment deadline <span className="field-number">03</span></label><input id="deadline" type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} required disabled={tx.busy || confirmedId !== undefined} /><p className="field-help">Shown in your local time.</p></div></div>
-          <label htmlFor="reference">Order reference <span className="field-number">04</span></label>
-          <input id="reference" placeholder="e.g. Website design — milestone 01" value={reference} onChange={(event) => setReference(event.target.value)} maxLength={500} required disabled={tx.busy || confirmedId !== undefined} aria-describedby="reference-help" />
-          <p className="field-help" id="reference-help">We hash this exact text with keccak256 in your browser. The text is not stored on-chain. Keep your own copy.</p>
-          <div className="rules"><p className="eyebrow">BEFORE YOU DEPOSIT</p><ul><li>The seller can mark fulfilment before the deadline.</li><li>You release funds with a post-quantum signature.</li><li>You can refund only after the deadline if the seller has not marked fulfilment.</li><li>No admin can move the funds. There is no dispute resolution.</li></ul></div>
-          {error && <Notice error>{error}</Notice>}
-          {confirmedId !== undefined ? <Notice>Payment #{confirmedId.toString()} is confirmed. <a href={`/payment/${confirmedId}`} onClick={(event) => { event.preventDefault(); navigate(`/payment/${confirmedId}`); }}>Open payment →</a></Notice> : <button className="button primary full-width" type="submit" disabled={!address || chainId !== 9800 || tx.busy}><Icon name="lock" />{tx.busy ? "PROCESSING…" : "LOCK FUNDS"}<Icon /></button>}
-          {!address && <p className="button-hint">Connect your wallet to create a payment.</p>}
-          <TransactionStatus tx={tx} />
-        </form>
+  const validation = {
+    seller: fieldError(() => checkSeller(seller, address)),
+    amount: fieldError(() => checkAmount(amount)),
+    deadline: fieldError(() => checkDeadline(deadline)),
+    reference: reference.trim() ? "" : "Add an order reference so you can identify the terms.",
+  };
+  const [touched, setTouched] = useState<Partial<Record<keyof typeof validation, boolean>>>({});
+  function field(name: keyof typeof validation) {
+    const invalid = Boolean(touched[name] && validation[name]);
+    return {
+      id: name,
+      onBlur: () => setTouched((current) => ({ ...current, [name]: true })),
+      "aria-invalid": invalid || undefined,
+      "aria-describedby": invalid ? `${name}-help ${name}-error` : `${name}-help`,
+      required: true,
+      disabled: tx.busy || confirmedId !== undefined,
+    };
+  }
+  function feedback(name: keyof typeof validation, help: ReactNode) {
+    return <><p className="field-help" id={`${name}-help`}>{help}</p>
+      {touched[name] && validation[name] && <p className="payment-field-error" id={`${name}-error`}>{validation[name]}</p>}</>;
+  }
+  const walletReady = Boolean(address && chainId === 9800);
+  const readiness = confirmedId !== undefined || tx.stage === "confirmed" ? "Confirmed on testnet"
+    : tx.stage === "pending" ? "Waiting for testnet confirmation"
+    : tx.stage === "wallet" ? "Preparing transaction and wallet approval"
+    : !address ? "Connect a wallet" : !walletReady ? "Switch to QoreChain testnet"
+    : tx.qorex ? "Use a transaction-capable injected wallet" : Object.values(validation).some(Boolean) ? "Complete the payment details"
+    : "Ready for simulation and wallet approval";
+
+  return (
+    <div className="payment-glass-page">
+      <section className="payment-hero" aria-labelledby="create-title">
+        <div>
+          <p className="eyebrow">01 / NEW PAYMENT</p>
+          <h1 id="create-title">Make the terms.<br /><mark>Lock the funds.</mark></h1>
+          <p className="payment-lede">A clear agreement. Payment held in escrow.<br />Released with your post-quantum authorisation.</p>
+        </div>
+        <EscrowVault />
       </section>
-      <aside className="flow-sidebar"><div className="panel"><p className="eyebrow">A CLEAR PATH FOR YOUR PAYMENT</p><h2>Verify the process.<br />Verify the payment.</h2><ol className="flow-steps"><li><span className="step-index">01</span><div><h3>Lock</h3><p>You deposit QOR. The agreement and its terms hash are recorded on-chain.</p></div></li><li><span className="step-index">02</span><div><h3>Fulfil</h3><p>Your seller marks the agreement fulfilled before the deadline.</p></div></li><li><span className="step-index">03</span><div><h3>Authorise</h3><p>You provide an ML-DSA-87 signature. The contract verifies it before paying the seller.</p></div></li></ol><a href="/security" onClick={(event) => { event.preventDefault(); navigate("/security"); }} className="text-link">Understand the protection <Icon /></a></div><div className="quiet-panel"><Icon name="code" /><div><h3>Small contract. Clear rules.</h3><p>Payments go only to the stored buyer or seller. Read the contract and limitations before funding.</p></div></div></aside>
+      <div className="payment-create-grid">
+        <section className="security-glass payment-form-card" aria-labelledby="payment-form-heading">
+          <div className="payment-card-heading">
+            <div><h2 id="payment-form-heading">Payment details</h2><p>Set the recipient, amount and terms before you deposit.</p></div>
+            <span className="payment-chip"><span className="status-dot" /> QOR / TESTNET</span>
+          </div>
+          <form onSubmit={create}>
+            <label htmlFor="seller">Seller address</label>
+            <input {...field("seller")} autoComplete="off" spellCheck={false} className="mono-input" placeholder="0x…" value={seller} onChange={(event) => setSeller(event.target.value)} />
+            {feedback("seller", "Only this address can mark fulfilment and receive a release.")}
+            <div className="field-row">
+              <div>
+                <label htmlFor="amount">Amount</label>
+                <div className="input-unit"><input {...field("amount")} inputMode="decimal" placeholder="0.00" value={amount} onChange={(event) => setAmount(event.target.value)} /><span className="mono">QOR</span></div>
+                {feedback("amount", "Testnet tokens. Network fees are separate.")}
+              </div>
+              <div>
+                <label htmlFor="deadline">Fulfilment deadline</label>
+                <input {...field("deadline")} type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
+                {feedback("deadline", "Shown in your local time.")}
+              </div>
+            </div>
+            <label htmlFor="reference">Order reference</label>
+            <input {...field("reference")} placeholder="e.g. Website design — milestone 01" value={reference} onChange={(event) => setReference(event.target.value)} maxLength={500} />
+            {feedback("reference", "We hash this exact text with keccak256 in your browser. The text is not stored on-chain. Keep your own copy.")}
+            <div className="rules">
+              <p className="eyebrow">BEFORE YOU DEPOSIT</p>
+              <ul>
+                <li>The seller can mark fulfilment before the deadline.</li>
+                <li>You release funds with a post-quantum signature.</li>
+                <li>You can refund only after the deadline if the seller has not marked fulfilment.</li>
+                <li>No admin can move the funds. There is no dispute resolution.</li>
+              </ul>
+            </div>
+            {error && <Notice error>{error}</Notice>}
+            {confirmedId !== undefined ? (
+              <Notice>Payment #{confirmedId.toString()} is confirmed. <a href={`/payment/${confirmedId}`} onClick={(event) => { event.preventDefault(); navigate(`/payment/${confirmedId}`); }}>Open payment →</a></Notice>
+            ) : (
+              <button className="button primary full-width payment-primary" type="submit" disabled={!walletReady || tx.busy}>
+                <Icon name="lock" />{tx.busy ? "PROCESSING…" : "LOCK FUNDS"}<Icon />
+              </button>
+            )}
+            {!walletReady && <p className="button-hint">{address ? "Switch to QoreChain testnet to create a payment." : "Connect your wallet to create a payment."}</p>}
+            <TransactionStatus tx={tx} />
+          </form>
+        </section>
+        <aside className="payment-aside">
+          <section className="security-glass payment-summary">
+            <h2>Payment summary</h2>
+            <p className="summary-total">{validation.amount ? "—" : amount} <span>QOR</span></p>
+            <dl>
+              <div><dt>Network</dt><dd>QoreChain testnet</dd></div>
+              <div><dt>Seller</dt><dd>{validation.seller ? "—" : <code title={seller.trim()}>{short(seller.trim())}</code>}</dd></div>
+              <div><dt>Network fees</dt><dd>Separate from the deposit</dd></div>
+              <div><dt>Readiness</dt><dd>{readiness}</dd></div>
+            </dl>
+          </section>
+          <section className="security-glass payment-process">
+            <h2>How escrow works</h2>
+            <ol>
+              <li><span className="step-index">01</span><div><h3><Icon name="lock" size={15} /> Lock</h3><p>The buyer deposits QOR into the escrow contract.</p></div></li>
+              <li><span className="step-index">02</span><div><h3><Icon name="shield" size={15} /> Verify</h3><p>The seller marks fulfilment before the deadline. At settlement, the contract checks the buyer’s signed agreement digest.</p></div></li>
+              <li><span className="step-index">03</span><div><h3><Icon size={15} /> Release</h3><p>After fulfilment, the buyer can release funds to the stored seller using a valid ML-DSA-87 signature.</p></div></li>
+            </ol>
+            <a className="text-link" href="/security" onClick={(event) => { event.preventDefault(); navigate("/security"); }}>Understand the protection <Icon /></a>
+          </section>
+        </aside>
+      </div>
     </div>
-  </>;
+  );
 }
