@@ -58,63 +58,68 @@ export function EscrowVault() {
   );
 }
 
-export function AgreementArt({ compact = false }: { compact?: boolean }) {
+export function GlassWallet({ compact = false }: { compact?: boolean }) {
   const id = useId();
   const fill = (name: string) => `url(#${id}-${name})`;
+  const front = "M140 142 428 108q20-2 24 18l24 121q4 21-17 25l-291 38q-22 3-26-17l-25-124q-4-23 23-27Z";
+  const clasp = "m413 182 73-10q15-2 18 12l5 26q3 15-13 17l-73 9q-18 2-21-13l-4-23q-3-16 15-18Z";
   return (
-    <svg className={`agreement-art${compact ? " agreement-art-small" : ""}`} viewBox={compact ? "158 8 315 300" : "0 0 640 330"} fill="none" aria-hidden="true">
+    <svg className={`glass-wallet-art${compact ? " glass-wallet-small" : ""}`}
+      viewBox={compact ? "103 15 425 318" : "0 0 620 338"} fill="none" aria-hidden="true">
       <defs>
-        <linearGradient id={id + "-glass"} x2=".84" y2="1">
-          <stop stopColor="#f7fbff" stopOpacity=".96" /><stop offset=".38" stopColor="#86a6f8" stopOpacity=".8" />
-          <stop offset=".72" stopColor="#b4cbff" stopOpacity=".72" /><stop offset="1" stopColor="#eff6ff" stopOpacity=".92" />
+        <linearGradient id={id + "-face"} x2=".9" y2="1">
+          <stop stopColor="var(--wallet-light)" stopOpacity=".96" />
+          <stop offset=".36" stopColor="var(--wallet-frost)" stopOpacity=".86" />
+          <stop offset=".72" stopColor="var(--wallet-blue)" stopOpacity=".66" />
+          <stop offset="1" stopColor="var(--wallet-light)" stopOpacity=".88" />
         </linearGradient>
-        <linearGradient id={id + "-rim"} x2="1" y2="1">
-          <stop stopColor="#829dff" /><stop offset=".33" stopColor="#fff" /><stop offset=".7" stopColor="#6f91f7" /><stop offset="1" stopColor="#f1f9ff" />
+        <linearGradient id={id + "-edge"} x2="1" y2="1">
+          <stop stopColor="var(--wallet-blue)" /><stop offset=".32" stopColor="var(--wallet-light)" />
+          <stop offset=".69" stopColor="var(--wallet-blue)" /><stop offset="1" stopColor="var(--wallet-light)" />
         </linearGradient>
-        <linearGradient id={id + "-orbit"} x2="1" y2=".8">
-          <stop stopColor="#71caff" /><stop offset=".48" stopColor="#9ac9ff" stopOpacity=".3" /><stop offset="1" stopColor="#3154ee" />
+        <linearGradient id={id + "-insert"} x2=".65" y2="1">
+          <stop stopColor="var(--wallet-light)" /><stop offset=".58" stopColor="var(--wallet-frost)" />
+          <stop offset="1" stopColor="var(--wallet-blue)" />
         </linearGradient>
-        <linearGradient id={id + "-label"} x2=".8" y2="1">
-          <stop stopColor="#fbfdff" stopOpacity=".86" /><stop offset=".58" stopColor="#e5edff" stopOpacity=".5" /><stop offset="1" stopColor="#f9fbff" stopOpacity=".93" />
-        </linearGradient>
-        <radialGradient id={id + "-glow"}>
-          <stop stopColor="#4879fc" stopOpacity=".48" /><stop offset="1" stopColor="#7b9bff" stopOpacity="0" />
+        <radialGradient id={id + "-shadow"}>
+          <stop stopColor="#38599f" stopOpacity=".38" /><stop offset="1" stopColor="#7794cc" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={id + "-stud"} cx=".32" cy=".26" r=".82">
+          <stop stopColor="var(--wallet-light)" /><stop offset=".45" stopColor="var(--wallet-frost)" />
+          <stop offset="1" stopColor="var(--wallet-blue)" />
         </radialGradient>
       </defs>
-      {!compact && <>
-        <ellipse cx="326" cy="268" rx="276" ry="60" fill={fill("glow")} />
-        <ellipse cx="321" cy="192" rx="288" ry="82" transform="rotate(-8 321 192)" stroke={fill("orbit")} strokeWidth="2.5" />
-        <ellipse className="agreement-orbit-glint" cx="321" cy="192" rx="288" ry="82" transform="rotate(-8 321 192)" pathLength="100" stroke="#dbf5ff" strokeWidth="3.8" />
-      </>}
-      <g className="agreement-board">
-        <path d="M163 276 249 72q6-14 24-18L467 13q16-2 12 18l-86 240q-7 20-31 21l-182 1q-19 0-17-17Z" fill={fill("rim")} opacity=".8" />
-        <path d="M156 265 240 70q7-16 27-21L458 8q18-4 14 15l-86 239q-7 20-29 20H173q-24 0-17-17Z" fill={fill("glass")} stroke={fill("rim")} strokeWidth="2.7" />
-        <path d="m160 263 86-192q7-14 25-18l185-39q12-3 13 5M169 275h188q18 0 24-15" stroke="#f6fcff" strokeOpacity=".77" strokeWidth="2.4" />
-        <image href="/brand/rewind-mark-white.png" x="255" y="70" width="58" height="58" opacity=".93" />
-        <g transform="translate(232 161) skewX(-15) rotate(-7)">
-          <rect x="-3" y="4" width="189" height="69" rx="15" fill={fill("rim")} opacity=".75" />
-          <rect width="186" height="67" rx="14" fill={fill("label")} stroke="#ecf5ff" strokeWidth="1.8" />
-          <path d="M24 40v-7m10 7V26m10 14V19" stroke="#2160f8" strokeWidth="6" strokeLinecap="round" />
-          <text x="57" y="41" fill="#172344" fontFamily="Inter, Arial, sans-serif" fontSize="19" fontWeight="700">Agreements</text>
-        </g>
-        {!compact && <path d="M391 106v13m-6.5-6.5h13" stroke="#fff" strokeWidth="2" strokeLinecap="round" />}
-      </g>
-      {!compact && <>
-        <path d="M43 211q25 32 124 48m245 5q97-11 153-40" stroke={fill("orbit")} strokeWidth="2" />
-        <g className="agreement-token">
-          <g transform="translate(151 234) rotate(34)">
-            <ellipse cy="7" rx="40" ry="24" fill="#2058ee" />
-            <ellipse rx="40" ry="23" fill={fill("glass")} stroke="#99cdff" strokeWidth="3" />
-            <ellipse rx="32" ry="17" stroke="#3471ff" strokeWidth="2" />
-            <path d="M-14 2h26m-6-5 6 5-6 5m-12-8h-8m0 0 5-5m-5 5 5 4" stroke="#2856de" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round" />
+
+      <ellipse className="wallet-shadow" cx="318" cy="299" rx="222" ry="34" fill={fill("shadow")} />
+      <g className="wallet-float">
+        <g className="wallet-product">
+          <path d="m133 144 18-54q4-14 22-17l265-35q22-3 29 19l28 147q5 24-16 32l-22 13Z"
+            fill={fill("face")} stroke={fill("edge")} strokeWidth="3" />
+          <path d="m152 122 15-30 276-38 26 59-28 36Z" fill="#7494cf" fillOpacity=".27" />
+          <g className="wallet-insert wallet-insert-back">
+            <path d="m209 128-13-48q-4-17 13-22l166-34q18-4 23 13l21 76Z"
+              fill={fill("insert")} stroke={fill("edge")} strokeWidth="2" />
+            <path d="m214 62 157-33q16-3 21 10" stroke="var(--wallet-light)" strokeWidth="2" strokeLinecap="round" />
+          </g>
+          <g className="wallet-insert wallet-insert-front">
+            <path d="m175 153-14-47q-5-16 13-20l181-35q17-3 22 13l18 69Z"
+              fill={fill("insert")} stroke={fill("edge")} strokeWidth="2" />
+            <path d="m174 104 179-35" stroke="var(--wallet-light)" strokeWidth="2" opacity=".76" />
+            <path d="m189 117 16-3 4 12-16 3z" fill="var(--wallet-blue)" opacity=".55" />
+          </g>
+          <path d={front} transform="translate(10 4)" fill={fill("edge")} opacity=".87" />
+          <path d={front} fill={fill("face")} stroke={fill("edge")} strokeWidth="2.8" />
+          <path d="m123 165 25 123q3 16 21 14l290-38M144 149l283-34q14-2 18 12"
+            stroke="var(--wallet-light)" strokeOpacity=".8" strokeWidth="2.4" strokeLinecap="round" />
+          <image href="/brand/rewind-mark-white.png" x="233" y="174" width="90" height="90" transform="rotate(-7 278 219)" opacity=".72" />
+          <g className="wallet-clasp">
+            <path d={clasp} transform="translate(0 4)" fill={fill("edge")} />
+            <path d={clasp} fill={fill("face")} stroke={fill("edge")} strokeWidth="2" />
+            <circle cx="465" cy="203" r="13" fill={fill("stud")} stroke="var(--wallet-light)" strokeWidth="2" />
+            <circle cx="463" cy="201" r="4" fill="var(--wallet-light)" opacity=".64" />
           </g>
         </g>
-        <g className="agreement-shield">
-          <path d="M511 187q24 13 48 11v26q-3 41-46 63-45-12-48-53v-26q26-5 46-21Z" fill={fill("rim")} opacity=".85" />
-          <path d="M505 183q23 12 46 12v27q-3 40-44 61-44-13-46-52v-26q24-6 44-22Z" fill={fill("label")} stroke="#f4fbff" strokeWidth="2" />
-          <path d="m484 231 14 13 28-30" stroke="#2d62f6" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
-        </g>
-      </>}
+      </g>
     </svg>
   );
 }

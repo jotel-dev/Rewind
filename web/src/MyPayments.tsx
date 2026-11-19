@@ -7,7 +7,7 @@ import { rewindAbi } from "./abi/rewind.js";
 import { recentEvents, RECENT_BLOCKS } from "./chain.js";
 import { Icon, Notice } from "./components.js";
 import { qor, safeError, sameAddress, short, states, utc } from "./lib.js";
-import { AgreementArt } from "./PaymentArtwork.js";
+import { GlassWallet } from "./PaymentArtwork.js";
 import "./my-payments.css";
 
 const filters = ["All", "Funded", "Fulfilled", "Released", "Refunded"] as const;
@@ -93,7 +93,7 @@ export function MyPayments({ navigate }: { navigate: (path: string) => void }) {
           <p className="payment-lede">Payments where your connected wallet is the buyer or seller.</p>
           {newPayment("New payment")}
         </div>
-        <AgreementArt />
+        <GlassWallet />
       </section>
 
       <section className="payment-stats" aria-label="Payment statistics for the recent scan">
@@ -134,7 +134,7 @@ export function MyPayments({ navigate }: { navigate: (path: string) => void }) {
         <p className={copyFeedback ? "copy-feedback" : "sr-only"} role="status">{copyFeedback}</p>
         {!address ? (
           <div className="payment-empty">
-            <AgreementArt compact />
+            <GlassWallet compact />
             <h3>Connect your wallet</h3><p>Connect to find agreements where you are the buyer or seller.</p>
             <ConnectButton />
           </div>
@@ -151,7 +151,7 @@ export function MyPayments({ navigate }: { navigate: (path: string) => void }) {
             <button className="inline-button" type="button" onClick={() => void query.refetch()}>Retry scan</button>
           </Notice></div>
         ) : !query.data?.payments.length ? (
-          <div className="payment-empty"><AgreementArt compact />
+          <div className="payment-empty"><GlassWallet compact />
             <h3>No payments yet.</h3><p>Your agreements will appear here once you create or participate in a payment.</p>
             {newPayment("Create your first payment")}
           </div>

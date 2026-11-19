@@ -3,28 +3,49 @@
   padding: 3px 0 12px;
   gap: clamp(12px, 2vw, 37px);
 }
+.my-payments-page::before {
+  background: radial-gradient(ellipse at 72% 23%, #a8bdf41d, transparent 65%);
+}
 .my-payments-page .payments-hero h1 { font-size: clamp(40px, 4vw, 72px); margin-bottom: 12px; }
 .my-payments-page .payments-hero .eyebrow { margin-bottom: 16px; }
 .my-payments-page .payments-hero .payment-primary { padding-inline: 24px; }
 .payments-hero .payment-lede, .payments-hero .payment-primary { animation: security-enter .55s ease-out both; }
 .payments-hero .payment-lede { animation-delay: .09s; }
 .payments-hero .payment-primary { animation-delay: .17s; }
-.agreement-art { display: block; width: min(100%, 700px); max-height: clamp(220px, 21vw, 345px); justify-self: center; overflow: visible; animation: stack-enter .65s ease-out both; }
-.agreement-board {
+.glass-wallet-art {
+  --wallet-light: #f6fbff;
+  --wallet-frost: #dbe8fb;
+  --wallet-blue: #8eace6;
+  display: block;
+  width: min(100%, 670px);
+  max-height: clamp(220px, 21vw, 340px);
+  justify-self: center;
+  overflow: visible;
+  animation: stack-enter .65s ease-out both;
+}
+[data-theme="dark"] .glass-wallet-art {
+  --wallet-light: #d8eaff;
+  --wallet-frost: #7c96c9;
+  --wallet-blue: #455f99;
+}
+.wallet-float { animation: wallet-float 6s ease-in-out infinite alternate; }
+.wallet-product {
   transform-box: fill-box;
   transform-origin: center;
-  animation: agreement-float 5.7s ease-in-out infinite alternate;
-  filter: drop-shadow(0 11px 12px #3f63ce43);
+  filter: drop-shadow(0 8px 10px #375e9d2b);
   transition: transform .4s ease, filter .4s ease;
 }
-.agreement-orbit-glint { stroke-dasharray: 2 98; animation: orbit-glint 16s linear infinite; }
-.agreement-shield { animation: glass-float 4.8s ease-in-out infinite alternate; filter: drop-shadow(0 7px 10px #3d5dcc40); }
-.agreement-token { animation: glass-float 6s ease-in-out infinite alternate-reverse; }
-.agreement-art.agreement-art-small { width: 93px; margin: 0 auto; }
+.wallet-insert { animation: wallet-insert 5.9s ease-in-out infinite alternate; }
+.wallet-insert-back { animation-delay: -2.3s; }
+.wallet-clasp { transition: transform .4s ease; }
+.glass-wallet-art.glass-wallet-small { width: 100px; margin: 0 auto; }
+.glass-wallet-small :is(.wallet-float, .wallet-insert) { animation: none; }
 @media (hover: hover) {
-  .agreement-art:hover .agreement-board { transform: translate(3px,-3px) rotate(-2deg); filter: drop-shadow(0 13px 15px #3f63ce69); }
+  .glass-wallet-art:not(.glass-wallet-small):hover .wallet-product { transform: translate(2px, -3px) rotate(-1.3deg); filter: drop-shadow(0 10px 12px #375e9d3d) brightness(1.04); }
+  .glass-wallet-art:not(.glass-wallet-small):hover .wallet-clasp { transform: translateX(2px); }
 }
-@keyframes agreement-float { to { translate: 0 -7px; } }
+@keyframes wallet-float { to { translate: 0 -6px; } }
+@keyframes wallet-insert { to { translate: 0 -3px; } }
 
 .payment-stats {
   display: grid;
@@ -52,11 +73,11 @@
 .stat-skeleton { display: block; width: 2ch; height: 1em; border-radius: 6px; background: var(--security-rule); animation: payment-pulse 1.6s ease-in-out infinite alternate; }
 .my-payments-page .tone-funded { --status-color: #174be5; --status-soft: #dce8ff; }
 .my-payments-page .tone-fulfilled { --status-color: #087037; --status-soft: #def4e7; }
-.my-payments-page .tone-released { --status-color: #6535c6; --status-soft: #ece3ff; }
+.my-payments-page .tone-released { --status-color: #34558e; --status-soft: #e4edfa; }
 .my-payments-page .tone-refunded { --status-color: #526077; --status-soft: #e6eaf2; }
 [data-theme="dark"] .my-payments-page .tone-funded { --status-color: #b8cbff; --status-soft: #253b70; }
 [data-theme="dark"] .my-payments-page .tone-fulfilled { --status-color: #9de9b6; --status-soft: #234738; }
-[data-theme="dark"] .my-payments-page .tone-released { --status-color: #dec5ff; --status-soft: #42315e; }
+[data-theme="dark"] .my-payments-page .tone-released { --status-color: #bdd4ff; --status-soft: #304764; }
 [data-theme="dark"] .my-payments-page .tone-refunded { --status-color: #d2dbeb; --status-soft: #354158; }
 
 .my-payments-page .payment-dashboard {
@@ -137,7 +158,8 @@
 }
 @media (max-width: 767px) {
   .my-payments-page .payments-hero { grid-template-columns: minmax(0,1fr); gap: 10px; }
-  .agreement-art { width: min(100%, 340px); }
+  .glass-wallet-art { width: min(100%, 340px); }
+  .wallet-shadow { opacity: .7; }
   .payment-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .record-controls { width: 100%; grid-template-columns: minmax(0, 1fr) auto; }
   .record-controls select { min-width: 0; }
