@@ -1,5 +1,4 @@
 import { useId } from "react";
-import { Icon } from "./components.js";
 
 export function EscrowVault() {
   const id = useId();
@@ -59,13 +58,63 @@ export function EscrowVault() {
   );
 }
 
-export function PaymentCardsArt({ compact = false }: { compact?: boolean }) {
+export function AgreementArt({ compact = false }: { compact?: boolean }) {
+  const id = useId();
+  const fill = (name: string) => `url(#${id}-${name})`;
   return (
-    <div className={`payment-cards-art${compact ? " is-compact" : ""}`} aria-hidden="true">
-      <div className="payment-art-card"><span />{!compact && "Funded"}</div>
-      <div className="payment-art-card"><span />{!compact && "Fulfilled"}</div>
-      <div className="payment-art-card"><span />{!compact && "Released"}</div>
-      <div className="payment-art-icon"><Icon name="wallet" size={compact ? 24 : 38} /></div>
-    </div>
+    <svg className={`agreement-art${compact ? " agreement-art-small" : ""}`} viewBox={compact ? "158 8 315 300" : "0 0 640 330"} fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id={id + "-glass"} x2=".84" y2="1">
+          <stop stopColor="#f7fbff" stopOpacity=".96" /><stop offset=".38" stopColor="#86a6f8" stopOpacity=".8" />
+          <stop offset=".72" stopColor="#b4cbff" stopOpacity=".72" /><stop offset="1" stopColor="#eff6ff" stopOpacity=".92" />
+        </linearGradient>
+        <linearGradient id={id + "-rim"} x2="1" y2="1">
+          <stop stopColor="#829dff" /><stop offset=".33" stopColor="#fff" /><stop offset=".7" stopColor="#6f91f7" /><stop offset="1" stopColor="#f1f9ff" />
+        </linearGradient>
+        <linearGradient id={id + "-orbit"} x2="1" y2=".8">
+          <stop stopColor="#71caff" /><stop offset=".48" stopColor="#9ac9ff" stopOpacity=".3" /><stop offset="1" stopColor="#3154ee" />
+        </linearGradient>
+        <linearGradient id={id + "-label"} x2=".8" y2="1">
+          <stop stopColor="#fbfdff" stopOpacity=".86" /><stop offset=".58" stopColor="#e5edff" stopOpacity=".5" /><stop offset="1" stopColor="#f9fbff" stopOpacity=".93" />
+        </linearGradient>
+        <radialGradient id={id + "-glow"}>
+          <stop stopColor="#4879fc" stopOpacity=".48" /><stop offset="1" stopColor="#7b9bff" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      {!compact && <>
+        <ellipse cx="326" cy="268" rx="276" ry="60" fill={fill("glow")} />
+        <ellipse cx="321" cy="192" rx="288" ry="82" transform="rotate(-8 321 192)" stroke={fill("orbit")} strokeWidth="2.5" />
+        <ellipse className="agreement-orbit-glint" cx="321" cy="192" rx="288" ry="82" transform="rotate(-8 321 192)" pathLength="100" stroke="#dbf5ff" strokeWidth="3.8" />
+      </>}
+      <g className="agreement-board">
+        <path d="M163 276 249 72q6-14 24-18L467 13q16-2 12 18l-86 240q-7 20-31 21l-182 1q-19 0-17-17Z" fill={fill("rim")} opacity=".8" />
+        <path d="M156 265 240 70q7-16 27-21L458 8q18-4 14 15l-86 239q-7 20-29 20H173q-24 0-17-17Z" fill={fill("glass")} stroke={fill("rim")} strokeWidth="2.7" />
+        <path d="m160 263 86-192q7-14 25-18l185-39q12-3 13 5M169 275h188q18 0 24-15" stroke="#f6fcff" strokeOpacity=".77" strokeWidth="2.4" />
+        <image href="/brand/rewind-mark-white.png" x="255" y="70" width="58" height="58" opacity=".93" />
+        <g transform="translate(232 161) skewX(-15) rotate(-7)">
+          <rect x="-3" y="4" width="189" height="69" rx="15" fill={fill("rim")} opacity=".75" />
+          <rect width="186" height="67" rx="14" fill={fill("label")} stroke="#ecf5ff" strokeWidth="1.8" />
+          <path d="M24 40v-7m10 7V26m10 14V19" stroke="#2160f8" strokeWidth="6" strokeLinecap="round" />
+          <text x="57" y="41" fill="#172344" fontFamily="Inter, Arial, sans-serif" fontSize="19" fontWeight="700">Agreements</text>
+        </g>
+        {!compact && <path d="M391 106v13m-6.5-6.5h13" stroke="#fff" strokeWidth="2" strokeLinecap="round" />}
+      </g>
+      {!compact && <>
+        <path d="M43 211q25 32 124 48m245 5q97-11 153-40" stroke={fill("orbit")} strokeWidth="2" />
+        <g className="agreement-token">
+          <g transform="translate(151 234) rotate(34)">
+            <ellipse cy="7" rx="40" ry="24" fill="#2058ee" />
+            <ellipse rx="40" ry="23" fill={fill("glass")} stroke="#99cdff" strokeWidth="3" />
+            <ellipse rx="32" ry="17" stroke="#3471ff" strokeWidth="2" />
+            <path d="M-14 2h26m-6-5 6 5-6 5m-12-8h-8m0 0 5-5m-5 5 5 4" stroke="#2856de" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round" />
+          </g>
+        </g>
+        <g className="agreement-shield">
+          <path d="M511 187q24 13 48 11v26q-3 41-46 63-45-12-48-53v-26q26-5 46-21Z" fill={fill("rim")} opacity=".85" />
+          <path d="M505 183q23 12 46 12v27q-3 40-44 61-44-13-46-52v-26q24-6 44-22Z" fill={fill("label")} stroke="#f4fbff" strokeWidth="2" />
+          <path d="m484 231 14 13 28-30" stroke="#2d62f6" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      </>}
+    </svg>
   );
 }
