@@ -17,6 +17,7 @@ export type E2eCommand =
   | { step: "create"; send: boolean; fulfilInSeconds: bigint }
   | { step: "fulfil" | Action; id: bigint; send: boolean }
   | { step: "digest"; id: bigint; action: Action }
+  | { step: "sign"; id: bigint; action: Action; validSeconds: bigint }
   | { step: "state"; id: bigint };
 
 /** Strict parsing avoids accidental sending from misspelled/contradictory flags. */
@@ -24,9 +25,16 @@ export function parseArgs(argv: readonly string[]): E2eCommand {
   const flags: string[] = [];
   const args: string[] = [];
   let fulfilInSeconds: bigint | undefined;
+  let validSeconds: bigint | undefined;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--fulfil-in") {
+    if (arg === "--valid-minutes") {
+      if (validSeconds !== undefined) throw new E2eError("--valid-minutes cannot be repeated.");
+      const minutes = argv[++i];
+      if (minutes === undefined || minutes.startsWith("--")) throw new E2eError("--valid-minutes requires a value in minutes.");
+      try { validSeconds = parseFulfilMinutes(minutes); }
+      catch { throw new E2eError("--valid-minutes must be a decimal number of minutes, at least 1 minute, within the uint64 range."); }
+    } else if (arg === "--fulfil-in") {
       if (fulfilInSeconds !== undefined) throw new E2eError("--fulfil-in cannot be repeated.");
       const minutes = argv[++i];
       if (minutes === undefined || minutes.startsWith("--")) throw new E2eError("--fulfil-in requires a value in minutes.");
@@ -41,13 +49,14 @@ export function parseArgs(argv: readonly string[]): E2eCommand {
     throw new E2eError("--dry and --send cannot be combined.");
   }
   const step = args[0];
-  if (!["addresses", "balances", "create", "fulfil", "digest", "release", "refund", "state"].includes(step)) {
-    throw new E2eError("Usage: e2e.ts addresses | balances | create | fulfil <id> | digest <id> <release|refund> | release <id> | refund <id> | state <id>");
+  if (!["addresses", "balances", "create", "fulfil", "digest", "sign", "release", "refund", "state"].includes(step)) {
+    throw new E2eError("Usage: e2e.ts addresses | balances | create | fulfil <id> | digest <id> <release|refund> | sign <id> <release|refund> [--valid-minutes n] | release <id> | refund <id> | state <id>");
   }
   if (fulfilInSeconds !== undefined && step !== "create") throw new E2eError("--fulfil-in is supported only for create.");
-  const expected = step === "create" || step === "addresses" || step === "balances" ? 1 : step === "digest" ? 3 : 2;
+  if (validSeconds !== undefined && step !== "sign") throw new E2eError("--valid-minutes is supported only for sign.");
+  const expected = step === "create" || step === "addresses" || step === "balances" ? 1 : step === "digest" || step === "sign" ? 3 : 2;
   if (args.length !== expected) throw new E2eError("Wrong argument count for this step.");
-  if ((step === "digest" || step === "state" || step === "addresses" || step === "balances") && flags.length !== 0) {
+  if ((step === "digest" || step === "sign" || step === "state" || step === "addresses" || step === "balances") && flags.length !== 0) {
     throw new E2eError("Read-only steps do not accept --send or --dry.");
   }
   if (step === "addresses" || step === "balances") return { step };
@@ -56,10 +65,10 @@ export function parseArgs(argv: readonly string[]): E2eCommand {
   if (!/^[0-9]+$/.test(args[1])) throw new E2eError("Agreement ID must be a positive uint256 integer.");
   const id = BigInt(args[1]);
   if (id === 0n || id > MAX_UINT256) throw new E2eError("Agreement ID must be a positive uint256 integer.");
-  if (step === "digest") {
+  if (step === "digest" || step === "sign") {
     const action = args[2];
     if (action !== "release" && action !== "refund") throw new E2eError("Digest action must be release or refund.");
-    return { step, id, action };
+    return step === "sign" ? { step, id, action, validSeconds: validSeconds ?? 1800n } : { step, id, action };
   }
   if (step === "state") return { step, id };
   return { step: step as "fulfil" | Action, id, send };

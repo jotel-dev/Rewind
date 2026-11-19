@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { mkdir, writeFile } from "node:fs/promises";
 import {
   deriveUnifiedAccount, fetchPqcStatus, isRegisteredPqcKey, pqcSign, type UnifiedAccount,
 } from "@qorechain/sdk";
@@ -17,6 +18,7 @@ import {
   parseArgs, REWIND_ADDRESS, SELLER_SETUP, sellerReadyForSend, signatureSummary, STATE_NAMES, utcTime, type Action,
 } from "./e2e-utils.js";
 import { readPqcKeyStatus } from "./probe-pqc.js";
+import { signatureExport, signatureFilename } from "./signature-export.js";
 import {
   DiagnosticError, diagnose, formatFailure, insufficientFunds, invalidVariable,
   requiredVariable, sellerAddressStatus, sellerMismatch, type FailureContext, type Operation,
@@ -82,7 +84,7 @@ async function main(): Promise<void> {
     throw new E2eError("This runner supports QoreChain testnet only.");
   }
   // Validate local credentials/address selection before any RPC access.
-  const signer = "send" in command ? await signingAccount(command.step === "fulfil" ? 1 : 0) : undefined;
+  const signer = "send" in command || command.step === "sign" ? await signingAccount(command.step === "fulfil" ? 1 : 0) : undefined;
   const selectedSeller = command.step === "create" || command.step === "fulfil" ? configuredSeller() : undefined;
   if (command.step === "fulfil" && getAddress(signer!.evm) !== selectedSeller) {
     throw sellerMismatch(getAddress(signer!.evm), selectedSeller!);
@@ -152,6 +154,24 @@ async function main(): Promise<void> {
   }
 
   const now = (await remote("read", () => client.getBlock())).timestamp;
+  if (command.step === "sign") {
+    const current = await agreement(command.id);
+    if (!signer || getAddress(signer.evm) !== getAddress(current.buyer)) throw new E2eError("The derived buyer does not match the agreement's stored buyer; no signature exported.");
+    const validUntil = fulfilByFrom(now, command.validSeconds);
+    const message = await digest(command.id, command.action, validUntil);
+    const signature = pqcSign(signer.pqc.secretKey, hexToBytes(message));
+    const payload = signatureExport(command.id, command.action, validUntil, message, signature);
+    const filename = signatureFilename(command.id, command.action);
+    try {
+      const directory = new URL("../out/", import.meta.url);
+      await mkdir(directory, { recursive: true });
+      await writeFile(new URL(filename, directory), JSON.stringify(payload, null, 2) + "\n", { mode: 0o600 });
+    } catch { throw new E2eError("Could not write the signature export to contracts/out; no transaction was sent."); }
+    console.log(`out/${filename}`);
+    console.log(`digest: ${message}`);
+    console.log(`signature length: ${signature.length} bytes`);
+    return;
+  }
   if (command.step === "digest") {
     const validUntil = oneHourFrom(now);
     console.log(`validUntil: ${validUntil}`);

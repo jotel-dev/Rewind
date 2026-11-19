@@ -245,6 +245,37 @@ signing API is assumed.
 
 ## Testnet end-to-end runner
 
+### Export a public signature for the browser
+
+Run locally from `contracts/` with the buyer's existing ignored configuration:
+
+```sh
+npm run e2e -- sign <id> release
+npm run e2e -- sign <id> refund --valid-minutes 15
+```
+
+`sign` reads `digestFor` from the configured Rewind contract, cross-checks the
+digest, checks the derived buyer against the stored buyer, and signs the exact
+32 bytes using the mnemonic-derived ML-DSA-87 key. It never sends a transaction.
+Validity defaults to **30 minutes** after the latest block timestamp;
+`--valid-minutes` accepts decimal values of at least one minute. Fractional
+seconds round upward. These settings apply only to `sign`; existing settlement
+steps retain their own expiry behaviour.
+
+The output file is `out/signature-<id>-<release|refund>.json` with exactly
+`{id, action, validUntil, digest, signature}`. Integer metadata is encoded as
+decimal strings. The ignored `out/` directory is created automatically; repeating
+the same command replaces that agreement/action's export. Terminal output is
+limited to the file path, digest and signature length. No signing credential is
+written or printed. Treat the public signature as an authorisation for its
+specific agreement, action and expiry; do not commit it.
+
+Paste the JSON into the browser's authorisation panel. The browser adopts its
+signed expiry and reads `digestFor` again to check the digest, ID and action.
+For a raw 0x signature, set the exact matching `validUntil` manually; raw bytes
+carry no ID/action metadata for the browser to compare. Never paste signing
+credentials into the browser.
+
 The manual runner targets chain ID **9800** and the supplied Rewind deployment
 `0x775BbF36986FaBC54b64955c1D9b8EdB388E7c20`. It checks the RPC chain ID and that
 contract code exists before proceeding. It has not been executed against the

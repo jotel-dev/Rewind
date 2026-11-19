@@ -6,6 +6,9 @@
   "description": "A Vite + React + wagmi dApp for the QoreChain EVM, with RainbowKit and the QoreX wallet.",
   "scripts": {
     "dev": "vite",
+    "abi": "node scripts/sync-abi.mjs",
+    "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters && node scripts/lint.mjs",
+    "test": "node --test test/signature.test.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"

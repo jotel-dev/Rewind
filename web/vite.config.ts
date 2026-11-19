@@ -15,8 +15,10 @@ const proxy = {
   "/lcd-mainnet": rest("https://api.qore.host"),
 };
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // Review mode uses an empty directory, never the project's environment files.
+  envDir: mode === "review" ? ".review/no-env" : undefined,
   plugins: [react()],
-  server: { port: 5173, proxy },
+  server: { port: 5173, strictPort: true, proxy },
   preview: { proxy },
-});
+}));

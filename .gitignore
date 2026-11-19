@@ -14,3 +14,7 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+
+# Local per-agreement signature authorisations
+/contracts/out/
+/web/.review/

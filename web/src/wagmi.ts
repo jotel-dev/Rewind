@@ -1,8 +1,8 @@
 import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import { injectedWallet } from "@rainbow-me/rainbowkit/wallets";
-import { qorechain, qorechainTestnet } from "@qorechain/evm";
 import { qorexWallet } from "@qorechain/qorex-rainbowkit";
 import { createConfig, http } from "wagmi";
+import { chain, RPC_URL } from "./config.js";
 
 // QoreX first, then any other injected (EIP-1193) wallet. Neither uses
 // WalletConnect, so the project id is only a placeholder unless you add a
@@ -15,18 +15,17 @@ const connectors = connectorsForWallets(
     },
   ],
   {
-    appName: "QoreChain dApp",
+    appName: "Rewind",
     projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? "unused",
   },
 );
 
-// The testnet is listed first, so a fresh connection lands there.
+// Rewind permits only testnet. Keep the QoreX connector and its focus polling.
 export const config = createConfig({
-  chains: [qorechainTestnet, qorechain],
+  chains: [chain],
   connectors,
   transports: {
-    [qorechainTestnet.id]: http(),
-    [qorechain.id]: http(),
+    [chain.id]: http(RPC_URL),
   },
 });
 
