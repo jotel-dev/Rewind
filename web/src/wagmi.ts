@@ -1,8 +1,8 @@
 import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import { injectedWallet } from "@rainbow-me/rainbowkit/wallets";
-import { qorexWallet } from "@qorechain/qorex-rainbowkit";
 import { createConfig, http } from "wagmi";
 import { chain, RPC_URL } from "./config.js";
+import { rewindQorexWallet } from "./qorex.js";
 
 // QoreX first, then any other injected (EIP-1193) wallet. Neither uses
 // WalletConnect, so the project id is only a placeholder unless you add a
@@ -11,7 +11,7 @@ const connectors = connectorsForWallets(
   [
     {
       groupName: "Recommended",
-      wallets: [() => qorexWallet({ pollAccountsOnFocus: true }), injectedWallet],
+      wallets: [rewindQorexWallet, injectedWallet],
     },
   ],
   {
