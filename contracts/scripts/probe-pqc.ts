@@ -24,6 +24,19 @@ export interface KeyStatusSummary {
   possessionProven?: boolean;
 }
 
+export interface KeyStatusReader {
+  call(request: { to: Address; data: Hex }): Promise<{ data: Hex | undefined }>;
+}
+
+/** The shared read-only precompile call used by the probe and seller readiness. */
+export async function readPqcKeyStatus(client: KeyStatusReader, account: Address): Promise<KeyStatusSummary> {
+  const { data } = await client.call({
+    to: PQC_STATUS,
+    data: encodeFunctionData({ abi: FOUR_OUTPUT_ABI, functionName: "pqcKeyStatus", args: [account] }),
+  });
+  return decodeKeyStatus(data);
+}
+
 export function normalizeAddress(input: string): Address {
   try {
     const hex = input.startsWith("qor1") ? qorToEvm(input) : input;
@@ -77,13 +90,9 @@ async function main(): Promise<void> {
   if (chainId !== qorechainTestnetNetwork.chainId) {
     throw new ProbeError("RPC chain ID does not match the configured QoreChain testnet.");
   }
-  const { data } = await client.call({
-    to: PQC_STATUS,
-    data: encodeFunctionData({ abi: FOUR_OUTPUT_ABI, functionName: "pqcKeyStatus", args: [account] }),
-  });
   // Both shapes use the same selector: decode the single eth_call response twice
   // if necessary, without sending a transaction or making a second state query.
-  const summary = decodeKeyStatus(data);
+  const summary = await readPqcKeyStatus(client, account);
   console.log(`chainId: ${chainId}`);
   console.log(`account: ${account}`);
   console.log(`ABI shape: ${summary.shape}`);

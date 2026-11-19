@@ -13,9 +13,10 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { qorechainTestnetNetwork } from "../networks.js";
 import {
-  actionCode, computeDigest, DEMO_AMOUNT, DEMO_TERMS_HASH, E2eError, oneHourFrom,
-  parseArgs, REWIND_ADDRESS, signatureSummary, STATE_NAMES, type Action,
+  actionCode, computeDigest, DEMO_AMOUNT, DEMO_TERMS_HASH, E2eError, fulfilByFrom, oneHourFrom,
+  parseArgs, REWIND_ADDRESS, SELLER_SETUP, sellerReadyForSend, signatureSummary, STATE_NAMES, utcTime, type Action,
 } from "./e2e-utils.js";
+import { readPqcKeyStatus } from "./probe-pqc.js";
 import {
   DiagnosticError, diagnose, formatFailure, insufficientFunds, invalidVariable,
   requiredVariable, sellerAddressStatus, sellerMismatch, type FailureContext, type Operation,
@@ -169,12 +170,13 @@ async function main(): Promise<void> {
   if (command.step === "create") {
     const seller = selectedSeller!;
     if (seller === sender) throw new E2eError("SELLER_ADDRESS must differ from the buyer.");
-    const fulfilBy = oneHourFrom(now);
+    const fulfilBy = fulfilByFrom(now, command.fulfilInSeconds);
     value = DEMO_AMOUNT;
     data = encodeFunctionData({ abi: ABI, functionName: "createAgreement", args: [seller, DEMO_TERMS_HASH, fulfilBy] });
     nextState = "Funded";
     console.log(`amount (wei): ${value}`);
     console.log(`fulfilBy: ${fulfilBy}`);
+    console.log(`fulfilBy UTC: ${utcTime(fulfilBy)}`);
   } else {
     id = command.id;
     const current = await agreement(id);
@@ -202,6 +204,20 @@ async function main(): Promise<void> {
     }
   }
 
+  const rest = QORECHAIN_REST_ENDPOINTS[9800];
+  const sellerChecks = command.step === "fulfil" ? await Promise.all([
+    remote("read", () => readPqcKeyStatus(client, sender)),
+    remote("read", () => evmWindowStatus({ rest, address: signer.cosmos }), { endpoint: rest }),
+  ]) : undefined;
+  if (sellerChecks) {
+    const [status, window] = sellerChecks;
+    console.log(`seller registered (on-chain pqcKeyStatus): ${status.registered}`);
+    console.log(`seller window live: ${window.live}`);
+    if (!sellerReadyForSend(status, window)) {
+      if (command.send) throw new E2eError(SELLER_SETUP);
+      console.warn(SELLER_SETUP);
+    }
+  }
   const senderBalance = await remote("read", () => client.getBalance({ address: sender }));
   if (senderBalance <= value) {
     const failure = insufficientFunds(sender, senderBalance);
@@ -231,15 +247,18 @@ async function main(): Promise<void> {
 
   // Read-only readiness checks. Never fund, register, open a window or fall back
   // to a different signer. Each invocation can broadcast at most one transaction.
-  const rest = QORECHAIN_REST_ENDPOINTS[9800];
   const [window, pqc, balance] = await Promise.all([
-    remote("read", () => evmWindowStatus({ rest, address: signer.cosmos }), { endpoint: rest }),
-    remote("read", () => fetchPqcStatus({ rest, address: signer.cosmos }), { endpoint: rest }),
+    sellerChecks ? Promise.resolve(sellerChecks[1]) : remote("read", () => evmWindowStatus({ rest, address: signer.cosmos }), { endpoint: rest }),
+    command.step === "fulfil" ? Promise.resolve(undefined) : remote("read", () => fetchPqcStatus({ rest, address: signer.cosmos }), { endpoint: rest }),
     remote("read", () => client.getBalance({ address: sender })),
   ]);
-  if (!pqc.registered) throw new E2eError(`${role} needs its own registered ML-DSA-87 key. No transaction sent.`);
-  if (isRegisteredPqcKey(pqc, signer.pqc.publicKey) !== true) {
-    throw new E2eError(`${role} registered key could not be confirmed to match its mnemonic-derived key. No transaction sent.`);
+  if (command.step === "fulfil") {
+    if (!sellerChecks || !sellerReadyForSend(sellerChecks[0], window)) throw new E2eError(SELLER_SETUP);
+  } else {
+    if (!pqc?.registered) throw new E2eError(`${role} needs its own registered ML-DSA-87 key. No transaction sent.`);
+    if (isRegisteredPqcKey(pqc, signer.pqc.publicKey) !== true) {
+      throw new E2eError(`${role} registered key could not be confirmed to match its mnemonic-derived key. No transaction sent.`);
+    }
   }
   if (!window.live || window.remainingTxs < 1n || window.remainingBlocks < 1n) {
     throw new E2eError(`${role} needs its own live EVM window with remaining transactions. No transaction sent.`);

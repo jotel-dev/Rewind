@@ -59,6 +59,46 @@ npm run window register   # once per account: registers its ML-DSA-87 key
 npm run window open       # unscoped window: 600 blocks, 5 transactions
 ```
 
+`status`, `register` and `open` accept `--index <n>` (default **0**):
+
+```sh
+npm run window -- status --index 1
+npm run window -- register --index 1
+npm run window -- open --index 1
+```
+
+With a mnemonic, index `n` selects `m/44'/60'/0'/0/n` and derives that account's
+ML-DSA-87 key in the same SDK call. Each command prints the selected public 0x
+and qor1 addresses before any native request. At index 1, a configured
+`SELLER_ADDRESS` must match; a mismatch stops the command without broadcasting.
+Nonzero indices require `QORE_MNEMONIC`: the raw-private-key route supports only
+index 0. No-index commands retain index-0 account selection and existing window
+allowances. `recovery-code` does not accept `--index`.
+
+### Seller setup for the demo
+
+Keep `QORE_NETWORK` on testnet. First use `npm run e2e -- addresses` to check the
+index-1 seller's 0x/qor1 addresses against the locally configured seller. Fund
+that seller separately with enough testnet QOR for native registration/window
+fees and its EVM fulfilment transaction. The helper's configured native fee is
+100,000 uqor (0.1 QOR) per registration/open transaction.
+
+Run the following yourself, one command at a time:
+
+```sh
+npm run window -- status --index 1
+npm run window -- register --index 1
+npm run window -- open --index 1
+# Let the window-opening transaction settle before the EVM transaction.
+npm run e2e -- fulfil <id> --dry
+npm run e2e -- fulfil <id>
+```
+
+Registration is once per account; an existing registration is not replaced.
+The seller needs its own live window: the buyer's index-0 window does not cover
+index 1. Opening advances the selected account's nonce. These setup commands are
+manual operations; the E2E runner never performs them automatically.
+
 With `QORE_MNEMONIC` set, the helper derives the account and its ML-DSA-87 key
 from the mnemonic. Otherwise it uses `PRIVATE_KEY` for the account and a PQC
 recovery code, `QORE_PQC_RECOVERY_CODE`, for the ML-DSA-87 key; it stops with a
@@ -180,10 +220,11 @@ or from the agreement's stored seller. There is no fallback signer.
 
 | Step | Command | Effect |
 | --- | --- | --- |
-| Addresses | `npm run e2e -- addresses` | Offline: print the index-0 buyer's 0x/qor1 addresses, the index-1 seller's 0x address, and whether SELLER_ADDRESS is set, valid and matching. No credentials or RPC calls. |
+| Addresses | `npm run e2e -- addresses` | Offline: print both accounts' 0x/qor1 addresses and whether SELLER_ADDRESS is set, valid and matching. No credentials or RPC calls. |
 | Balances | `npm run e2e -- balances` | Read the derived buyer and seller balances from the testnet RPC and print them in QOR with their public addresses. No contract call or transaction. |
 | Preview creation | `npm run e2e -- create --dry` | Simulate funding without creating an agreement; any printed ID is only predicted. |
 | Create | `npm run e2e -- create` | Simulate, check readiness, then send 1,000,000,000,000,000 wei to create an agreement. Record its mined agreement ID. |
+| Short-deadline preview | `npm run e2e -- create --fulfil-in 3 --dry` | Simulate creation with a three-minute fulfilment deadline. Remove `--dry` to create it. |
 | Preview fulfilment | `npm run e2e -- fulfil <id> --dry` | Simulate using the index-1 seller; no transaction is sent. |
 | Fulfil | `npm run e2e -- fulfil <id>` | Simulate and then send from the index-1 seller. |
 | Digest | `npm run e2e -- digest <id> release` | Read and print the exact on-chain digest and expiry; use `refund` instead for the other action. |
@@ -226,8 +267,15 @@ when you want to check funding. The balances step always uses the derived index-
 seller, independently of SELLER_ADDRESS.
 
 Creation uses the seller from the environment, terms hash
-`keccak256("rewind-demo-order-1")` and a fulfilment deadline one hour after the
-latest block timestamp. Digest, release and refund each calculate a fresh
+`keccak256("rewind-demo-order-1")` and a fulfilment deadline **60 minutes** after
+the latest block timestamp by default. `create --fulfil-in <minutes>` changes
+only that deadline; for example `3` means three minutes and `3.5` means three
+minutes thirty seconds. Values below one minute are refused. Decimal conversion
+is exact, with any fractional second rounded up. The runner prints `fulfilBy`
+both as Unix seconds and as a human-readable UTC timestamp. The option is valid
+only for create.
+
+Digest, release and refund each calculate a fresh
 `validUntil` one hour after the latest block timestamp. A digest printed in an
 earlier invocation is informational: settlement reads and signs a fresh digest
 using the expiry printed in that settlement invocation. No digest or signature
@@ -239,9 +287,19 @@ signature's byte length and first eight bytes, never the whole signature or a
 signing credential. Raw RPC errors and calldata are suppressed; recognized
 contract-error names may be shown.
 
-Every transaction step first runs `eth_call`; a failed simulation stops the
-step before sending. Before broadcasting, the runner checks the sender's
-registration/key match, native balance and live EVM window (including its
+Every transaction step simulates with `eth_call`; a failed simulation stops the
+step before sending. Fulfil also checks seller registration using the same
+on-chain `pqcKeyStatus` call and four-/three-output decoding as the probe,
+including during dry runs. It does not use REST registration status for the
+seller. Missing seller setup prints:
+
+`seller needs: register (npm run window -- register --index 1) and a window (npm run window -- open --index 1)`
+
+Sending remains blocked until the seller has a registered ML-DSA-87 key and a
+live window. A dry run may continue its contract simulation after reporting
+missing setup; it never broadcasts. Before broadcasting, the runner checks the
+buyer's registration/key match or the seller's on-chain registration, plus the
+sender's native balance and live EVM window (including its
 remaining transaction, block, target and value-plus-fee allowances), then
 estimates gas and fees. It uses a 20% gas headroom and checks the corresponding
 maximum cost. Simulations and checks do not reserve that allowance, so chain
@@ -284,6 +342,8 @@ test/Rewind.ts                       escrow tests (node:test + viem)
 test/probe-pqc.ts                    offline probe decoding/address tests
 ignition/modules/Rewind.ts           no-argument escrow deployment
 scripts/window.ts                    EVM window helper (npm run window)
+scripts/window-utils.ts              offline window argument/account-selection helpers
+test/window-utils.ts                 indexed window argument and seller checks
 scripts/probe-pqc.ts                 read-only key-status probe
 scripts/e2e.ts                       manual testnet flow (one step per run)
 scripts/e2e-utils.ts                 pure CLI, digest, expiry and output helpers

@@ -1,13 +1,33 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { evmToQor } from "@qorechain/sdk";
-import { encodeAbiParameters, getAddress, parseAbiParameters, type Hex } from "viem";
-import { decodeKeyStatus, normalizeAddress } from "../scripts/probe-pqc.js";
+import { decodeFunctionData, encodeAbiParameters, getAddress, parseAbi, parseAbiParameters, type Hex } from "viem";
+import { decodeKeyStatus, normalizeAddress, readPqcKeyStatus } from "../scripts/probe-pqc.js";
 
 const ACCOUNT = "0x0000000000000000000000000000000000001234";
 const KEY: Hex = `0x${"ab".repeat(2592)}`;
 
 describe("PQC probe (offline decoding only)", () => {
+  for (const shape of ["4-output", "3-output"] as const) {
+    it(`uses one shared pqcKeyStatus eth_call for seller readiness (${shape})`, async () => {
+      const data = shape === "4-output"
+        ? encodeAbiParameters(parseAbiParameters("bool,uint8,bytes,bool"), [true, 1, KEY, true])
+        : encodeAbiParameters(parseAbiParameters("bool,uint8,bytes"), [true, 1, KEY]);
+      let calls = 0;
+      const result = await readPqcKeyStatus({ call: async (request) => {
+        calls++;
+        assert.equal(request.to, "0x0000000000000000000000000000000000000a02");
+        const decoded = decodeFunctionData({ abi: parseAbi(["function pqcKeyStatus(address account) view returns (bool,uint8,bytes,bool)"]), data: request.data });
+        assert.equal(decoded.functionName, "pqcKeyStatus");
+        assert.deepEqual(decoded.args, [getAddress(ACCOUNT)]);
+        return { data };
+      } }, ACCOUNT);
+      assert.equal(calls, 1);
+      assert.equal(result.shape, shape);
+      assert.equal(result.registered, true);
+    });
+  }
+
   it("decodes four outputs and exposes key length without key bytes", () => {
     const data = encodeAbiParameters(parseAbiParameters("bool,uint8,bytes,bool"), [true, 1, KEY, true]);
     assert.deepEqual(decodeKeyStatus(data), {

@@ -8,7 +8,8 @@ import {
 import { ABI, publicAddressLines } from "../scripts/e2e.js";
 import {
   actionCode, computeDigest, DEMO_AMOUNT, DEMO_TERMS_HASH, MAX_UINT256,
-  oneHourFrom, parseArgs, REWIND_ADDRESS, signatureSummary, type DigestInput,
+  fulfilByFrom, oneHourFrom, parseArgs, parseFulfilMinutes, REWIND_ADDRESS,
+  SELLER_SETUP, sellerReadyForSend, signatureSummary, utcTime, type DigestInput,
 } from "../scripts/e2e-utils.js";
 
 describe("E2E pure helpers (no RPC or environment loading)", () => {
@@ -29,14 +30,14 @@ describe("E2E pure helpers (no RPC or environment loading)", () => {
   });
 
   it("parses create and fulfil as send steps by default", () => {
-    assert.deepEqual(parseArgs(["create"]), { step: "create", send: true });
+    assert.deepEqual(parseArgs(["create"]), { step: "create", send: true, fulfilInSeconds: 3600n });
     assert.deepEqual(parseArgs(["fulfil", "7"]), { step: "fulfil", id: 7n, send: true });
   });
 
   for (const step of ["create", "fulfil", "release", "refund"] as const) {
     it(`supports --dry before or after ${step}`, () => {
       const args = step === "create" ? [step] : [step, "7"];
-      const expected = step === "create" ? { step, send: false } : { step, id: 7n, send: false };
+      const expected = step === "create" ? { step, send: false, fulfilInSeconds: 3600n } : { step, id: 7n, send: false };
       assert.deepEqual(parseArgs(["--dry", ...args]), expected);
       assert.deepEqual(parseArgs([...args, "--dry"]), expected);
     });
@@ -53,6 +54,66 @@ describe("E2E pure helpers (no RPC or environment loading)", () => {
     assert.deepEqual(parseArgs(["state", "3"]), { step: "state", id: 3n });
     assert.deepEqual(parseArgs(["digest", "3", "release"]), { step: "digest", id: 3n, action: "release" });
     assert.deepEqual(parseArgs(["digest", "3", "refund"]), { step: "digest", id: 3n, action: "refund" });
+  });
+
+  it("parses create --fulfil-in before/after the step, including decimal minutes", () => {
+    assert.deepEqual(parseArgs(["create", "--fulfil-in", "3", "--dry"]), {
+      step: "create", send: false, fulfilInSeconds: 180n,
+    });
+    assert.deepEqual(parseArgs(["--fulfil-in", "3.5", "create", "--send"]), {
+      step: "create", send: true, fulfilInSeconds: 210n,
+    });
+  });
+
+  for (const value of ["0", "0.999", ".5", "-1", "NaN", "Infinity", "1e3", "abc", ""]) {
+    it(`rejects invalid/sub-minute --fulfil-in: ${value || "(empty)"}`, () => {
+      assert.throws(() => parseArgs(["create", "--fulfil-in", value]), /at least 1 minute/);
+    });
+  }
+
+  for (const args of [
+    ["create", "--fulfil-in"], ["create", "--fulfil-in", "--dry"],
+    ["create", "--fulfil-in", "3", "--fulfil-in", "4"],
+    ["fulfil", "1", "--fulfil-in", "3"], ["refund", "1", "--fulfil-in", "3"],
+    ["state", "1", "--fulfil-in", "3"], ["addresses", "--fulfil-in", "3"],
+  ]) {
+    it(`rejects missing, repeated or misplaced deadline option: ${args.join(" ")}`, () => {
+      assert.throws(() => parseArgs(args), /--fulfil-in/);
+    });
+  }
+
+  it("calculates exact minute durations and rounds fractional seconds upward", () => {
+    assert.equal(parseFulfilMinutes("1"), 60n);
+    assert.equal(parseFulfilMinutes("3.5"), 210n);
+    assert.equal(parseFulfilMinutes("1.1"), 66n);
+    assert.equal(parseFulfilMinutes("1.01"), 61n);
+    assert.equal(parseFulfilMinutes("1.0000000000000000001"), 61n);
+    assert.equal(fulfilByFrom(1_700_000_000n), 1_700_003_600n);
+    assert.equal(fulfilByFrom(1_700_000_000n, parseFulfilMinutes("3")), 1_700_000_180n);
+    assert.equal(utcTime(1_700_000_180n), "2023-11-14T22:16:20.000Z");
+  });
+
+  it("rejects unsafe deadline ranges and invalid UTC dates", () => {
+    const max = (1n << 64n) - 1n;
+    assert.equal(fulfilByFrom(max - 60n, 60n), max);
+    assert.throws(() => fulfilByFrom(max - 59n, 60n), /uint64/);
+    assert.throws(() => fulfilByFrom(-1n, 60n), /uint64/);
+    assert.throws(() => fulfilByFrom(1n, 59n), /at least 1 minute/);
+    assert.throws(() => parseFulfilMinutes(max.toString()), /uint64/);
+    assert.throws(() => utcTime(max), /UTC/);
+  });
+
+  it("never treats an unregistered seller as ready, even with a live window", () => {
+    const status = { registered: true, algorithmId: 1, publicKeyLength: 2592 };
+    const window = { live: true, remainingTxs: 1n, remainingBlocks: 1n };
+    assert.equal(sellerReadyForSend(status, window), true);
+    assert.equal(sellerReadyForSend({ ...status, registered: false }, window), false);
+    assert.equal(sellerReadyForSend({ ...status, algorithmId: 2 }, window), false);
+    assert.equal(sellerReadyForSend({ ...status, publicKeyLength: 0 }, window), false);
+    assert.equal(sellerReadyForSend(status, { ...window, live: false }), false);
+    assert.equal(sellerReadyForSend(status, { ...window, remainingTxs: 0n }), false);
+    assert.equal(sellerReadyForSend(status, { ...window, remainingBlocks: 0n }), false);
+    assert.equal(SELLER_SETUP, "seller needs: register (npm run window -- register --index 1) and a window (npm run window -- open --index 1)");
   });
 
   for (const args of [
