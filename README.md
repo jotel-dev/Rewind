@@ -142,6 +142,13 @@ proxy for the window panel. No frontend hosting deployment command is included.
 See [contracts setup](contracts/README.md), [frontend setup](web/README.md),
 [agent rules](AGENTS.md), and [AI usage](AI_USAGE.md) for details.
 
+## Classical-key attack demonstration
+
+The planned script for a classical-key attack demonstration is
+`contracts/scripts/attack-demo.ts`.
+
+This demo is our own simulation; Rewind did not take part in the official Q-Day Drill on 18 November 2026.
+
 ## Credits
 
 - `create-qorechain-dapp`: the QoreChain Hardhat 3 and viem + wagmi starter kits.

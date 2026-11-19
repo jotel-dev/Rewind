@@ -9,7 +9,7 @@
  * Usage (see README):
  *   npm run window -- status [--index n]     show the account, PQC key status and window
  *   npm run window -- register [--index n]   register the account's ML-DSA-87 key (once)
- *   npm run window -- open [--index n]       open a window sized for a few deploys
+ *   npm run window -- open [--index n] [--scope-contract]   open a window
  *   npm run window recovery-code             generate a new recovery code (keep private)
  *
  * The account comes from QORE_MNEMONIC (BIP-44 m/44'/60'/0'/0/{index}, default 0), whose
@@ -32,9 +32,11 @@ import {
   unifiedAccountFromSeed,
   type UnifiedAccount,
 } from "@qorechain/sdk";
-import { evmWindowCost, evmWindowStatus } from "@qorechain/evm";
+import { evmWindowCost } from "@qorechain/evm";
 import { E2eError } from "./e2e-utils.js";
-import { assertIndexSource, assertSelectedSeller, parseWindowArgs, type WindowCommand } from "./window-utils.js";
+import { assertIndexSource, assertSelectedSeller, parseWindowArgs } from "./window-utils.js";
+import { loadRewindAddress } from "./rewind-address.js";
+import { readWindowStatus, windowScopeLines } from "./window-scope.js";
 
 const NETWORKS = {
   testnet: {
@@ -109,7 +111,7 @@ async function status(index: number): Promise<void> {
   console.log(
     `PQC key:  ${pqc.registered ? (mine === false ? "registered, but NOT this key" : "registered") : `not registered (run: npm run window -- register --index ${index})`}`,
   );
-  const w = await evmWindowStatus({ rest: net.rest, address: acc.cosmos });
+  const { window: w, scope } = await readWindowStatus({ rest: net.rest, address: acc.cosmos });
   if (!w.found) {
     console.log(`window:   none (run: npm run window -- open --index ${index})`);
   } else {
@@ -117,6 +119,7 @@ async function status(index: number): Promise<void> {
       `window:   ${w.live ? "live" : "not usable"}; ${w.remainingBlocks} blocks, ${w.remainingTxs} txs, ${w.remainingValue} uqor left`,
     );
   }
+  for (const line of windowScopeLines(scope)) console.log(line);
 }
 
 async function broadcast(acc: UnifiedAccount, mode: "hybrid" | "classical", messages: Parameters<EthNativeSigner["sign"]>[0]["messages"]): Promise<string> {
@@ -152,8 +155,10 @@ async function register(index: number): Promise<void> {
   console.log(`registered: ${await broadcast(acc, "classical", [msg])}`);
 }
 
-async function open(index: number): Promise<void> {
+async function open(index: number, scopeContract: boolean): Promise<void> {
   const net = network();
+  if (scopeContract && net.chainId !== "qorechain-diana") throw new E2eError("Rewind contract scoping is supported on testnet only.");
+  const target = scopeContract ? await loadRewindAddress(process.env.REWIND_ADDRESS) : undefined;
   const acc = await account(index);
   const blocks = BigInt(process.env.QORE_WINDOW_BLOCKS ?? "600");
   const maxTxs = BigInt(process.env.QORE_WINDOW_TXS ?? "5");
@@ -162,10 +167,12 @@ async function open(index: number): Promise<void> {
   // (tools commonly set the cap near twice the 100 gwei base fee).
   const perTx = evmWindowCost({ gas: 3_000_000n, maxFeePerGas: 250_000_000_000n });
   const maxValue = BigInt(process.env.QORE_WINDOW_MAX_UQOR ?? (perTx * maxTxs).toString());
-  const msg = openEvmWindowMsg({ sender: acc.cosmos, blocks, maxTxs, maxValue });
+  const msg = openEvmWindowMsg({ sender: acc.cosmos, blocks, maxTxs, maxValue, ...(target ? { allowedTargets: [target] } : {}) });
+  console.log(target ? `scope allowedTargets: ${target}; nativeOnly: false` : "scope: unscoped (any recipient)");
+  if (target) console.log("An allowedTargets window excludes contract deployment; deploying needs an unscoped window.");
   console.log(`opened: ${await broadcast(acc, "hybrid", [msg])}`);
   console.log(`window: ${blocks} blocks, ${maxTxs} txs, ${maxValue} uqor (value plus fees)`);
-  console.log("Opening advanced the account's nonce; deploy now.");
+  console.log(target ? "Opening advanced the account's nonce; use this window for the Rewind contract only." : "Opening advanced the account's nonce; deploy now.");
 }
 
 async function recoveryCode(): Promise<void> {
@@ -175,9 +182,11 @@ async function recoveryCode(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const { command, index } = parseWindowArgs(process.argv.slice(2));
-  const commands: Record<WindowCommand, (index: number) => Promise<void>> = { status, register, open, "recovery-code": recoveryCode };
-  await commands[command](index);
+  const { command, index, scopeContract = false } = parseWindowArgs(process.argv.slice(2));
+  if (command === "open") await open(index, scopeContract);
+  else if (command === "status") await status(index);
+  else if (command === "register") await register(index);
+  else await recoveryCode();
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

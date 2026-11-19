@@ -3,12 +3,16 @@ import { E2eError } from "./e2e-utils.js";
 
 export type WindowCommand = "status" | "register" | "open" | "recovery-code";
 
-export function parseWindowArgs(argv: readonly string[]): { command: WindowCommand; index: number } {
+export function parseWindowArgs(argv: readonly string[]): { command: WindowCommand; index: number; scopeContract?: true } {
   let command: WindowCommand | undefined;
   let index: number | undefined;
+  let scopeContract = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--index") {
+    if (arg === "--scope-contract") {
+      if (scopeContract) throw new E2eError("--scope-contract cannot be repeated.");
+      scopeContract = true;
+    } else if (arg === "--index") {
       if (index !== undefined) throw new E2eError("--index cannot be repeated.");
       const raw = argv[++i];
       if (raw === undefined || !/^[0-9]+$/.test(raw)) {
@@ -20,10 +24,11 @@ export function parseWindowArgs(argv: readonly string[]): { command: WindowComma
       }
     } else if ((arg === "status" || arg === "register" || arg === "open" || arg === "recovery-code") && command === undefined) {
       command = arg;
-    } else throw new E2eError("Use: status | register | open [--index n], or recovery-code without an index.");
+    } else throw new E2eError("Use: status | register | open [--index n] [--scope-contract for open only], or recovery-code.");
   }
   if (command === "recovery-code" && index !== undefined) throw new E2eError("--index is supported only for status, register and open.");
-  return { command: command ?? "status", index: index ?? 0 };
+  if (scopeContract && command !== "open") throw new E2eError("--scope-contract is supported only for open.");
+  return { command: command ?? "status", index: index ?? 0, ...(scopeContract ? { scopeContract: true as const } : {}) };
 }
 
 export function assertIndexSource(index: number, hasMnemonic: boolean): void {

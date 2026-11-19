@@ -89,6 +89,11 @@ function customErrorName(nodes: Record<string, unknown>[], abi: Abi | undefined)
   return undefined;
 }
 
+/** Return only an ABI-whitelisted name; never raw provider text or error arguments. */
+export function rewindErrorName(error: unknown, abi: Abi): string | undefined {
+  return customErrorName(errorNodes(error), abi);
+}
+
 const TRANSPORT_NAMES = new Set(["HttpRequestError", "WebSocketRequestError", "TimeoutError", "SocketClosedError", "AbortError"]);
 const TRANSPORT_CODES = new Set([
   "ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT", "ENETUNREACH", "EHOSTUNREACH",

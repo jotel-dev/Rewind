@@ -12,6 +12,7 @@
     "deploy:counter": "hardhat ignition deploy ignition/modules/Counter.ts --network qorechainTestnet",
     "probe:pqc": "tsx --env-file=.env scripts/probe-pqc.ts",
     "e2e": "tsx --env-file=.env scripts/e2e.ts",
+    "attack-demo": "tsx --env-file=.env scripts/attack-demo.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

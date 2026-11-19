@@ -22,6 +22,14 @@ describe("Window arguments and seller selection (offline)", () => {
     assert.deepEqual(parseWindowArgs(["status", "--index", "2147483647"]), { command: "status", index: 2147483647 });
   });
 
+  it("supports contract scoping only for open, combined with account selection", () => {
+    assert.deepEqual(parseWindowArgs(["open", "--scope-contract"]), { command: "open", index: 0, scopeContract: true });
+    assert.deepEqual(parseWindowArgs(["--scope-contract", "--index", "1", "open"]), { command: "open", index: 1, scopeContract: true });
+    for (const args of [["status", "--scope-contract"], ["register", "--scope-contract"], ["recovery-code", "--scope-contract"], ["--scope-contract"], ["open", "--scope-contract", "--scope-contract"]]) {
+      assert.throws(() => parseWindowArgs(args), /--scope-contract/);
+    }
+  });
+
   for (const args of [
     ["open", "--index"], ["open", "--index", "-1"], ["open", "--index", "1.5"],
     ["open", "--index", "NaN"], ["open", "--index", "2147483648"],

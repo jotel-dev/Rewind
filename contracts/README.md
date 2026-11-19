@@ -75,6 +75,51 @@ Nonzero indices require `QORE_MNEMONIC`: the raw-private-key route supports only
 index 0. No-index commands retain index-0 account selection and existing window
 allowances. `recovery-code` does not accept `--index`.
 
+### Scope a window to Rewind
+
+After deployment, `open --scope-contract` sets `allowedTargets` to the single
+Rewind contract address. It reads the optional `REWIND_ADDRESS` process variable
+first; otherwise it reads `RewindModule#Rewind` from
+`ignition/deployments/chain-9800/deployed_addresses.json`. Missing or invalid
+addresses stop the command before broadcasting; an invalid override never
+silently falls back to the manifest. Only public addresses are printed.
+
+Run these commands yourself from `contracts/`:
+
+```sh
+npm run window -- open --scope-contract
+# Let the opening transaction settle; it advances the buyer's nonce.
+npm run window -- status
+```
+
+For the seller, combine both options:
+
+```sh
+npm run window -- open --index 1 --scope-contract
+npm run window -- status --index 1
+```
+
+An `allowedTargets` window excludes contract deployment: deploy with an
+**unscoped** window (`npm run window -- open`). Opening replaces the previous
+window. This option restricts recipients to Rewind; it does not restrict which
+Rewind functions can be called. It keeps the existing block, transaction and
+value-plus-fee allowances and index selection.
+
+`status` prints scope fields that the REST response includes. It explicitly
+reports omitted or malformed fields instead of treating absent fields as proof
+that a window is unrestricted. It prints public target/validator addresses and
+the IBC receiver count, never arbitrary receiver strings.
+
+The installed EVM `OpenEvmWindowParams` accepts `nativeOnly?: boolean` and
+`allowedTargets?: readonly string[]`. The SDK adds `OpenEvmWindowScope` fields
+`validators?: readonly string[]`, `stakingValidators?: readonly string[]` and
+`ibcReceivers?: readonly string[]`. These are top-level parameters to
+`openEvmWindowMsg`, alongside `sender: string`, `blocks: number | bigint`,
+`maxTxs: number | bigint` and `maxValue: number | bigint | string`. The SDK
+validates and encodes the native `MsgOpenEVMWindow`, which the helper signs
+hybrid. This CLI sets only `allowedTargets` when scoping; `validators` describes
+signature-checking contracts and does not restrict destinations.
+
 ### Seller setup for the demo
 
 Keep `QORE_NETWORK` on testnet. First use `npm run e2e -- addresses` to check the
@@ -137,8 +182,9 @@ window you use; register its key first if needed.
 
 1. Check `npm run window status` and verify the account and PQC key match.
 2. Open an **unscoped** window with `npm run window open`. The existing helper
-   does not set `nativeOnly` or `allowedTargets`; those restrictions prohibit
-   contract creation.
+   leaves `nativeOnly` false and `allowedTargets` empty unless `--scope-contract`
+   is supplied. Do not supply that option for deployment: those restrictions
+   prohibit contract creation.
 3. Wait about ten seconds for the opening transaction's confirmations. Opening
    advances the deployer's nonce, so sign the deployment only afterwards.
 4. Run `npm run deploy:testnet`.
@@ -321,6 +367,67 @@ used and the state at the receipt's block. It does not automatically retry a
 broadcast. If the receipt or broadcast outcome is uncertain, check on-chain
 history and any printed hash before repeating a step, especially creation.
 
+## A classical-key attack demonstration
+
+This demo is our own simulation; Rewind did not take part in the official Q-Day Drill on 18 November 2026.
+
+`scripts/attack-demo.ts` is a classical-key attack demonstration. The underlying
+command is `tsx --env-file=.env scripts/attack-demo.ts <attack>`; use the npm
+alias below from `contracts/`. It supports testnet chain ID 9800 only and uses
+the same `REWIND_ADDRESS` override / Ignition manifest selection as scoped windows.
+Each invocation ends with one `PASS` or `FAIL` line. No signature contents,
+signing credentials, raw provider errors or request bodies are printed.
+
+| Attack | Command | Required agreement / result |
+| --- | --- | --- |
+| Forged release | `npm run attack-demo -- release-forged <id>` | Use a `Fulfilled` agreement. Simulates release with 4,627 random bytes; expects `InvalidPqcSignature`. |
+| Empty release signature | `npm run attack-demo -- release-no-sig <id>` | Use a `Fulfilled` agreement. Simulates release with an empty signature; expects `InvalidPqcSignature`. |
+| Forged refund | `npm run attack-demo -- refund-forged <id>` | Use a `Funded` agreement strictly past its fulfilment deadline. Simulates refund with 4,627 random bytes; expects `InvalidPqcSignature`. |
+| Preview unrelated transfer | `npm run attack-demo -- transfer-out` | Offline preview only: prints what would be sent and stops without reading credentials or calling RPC. |
+| Attempt unrelated transfer | `npm run attack-demo -- transfer-out --send` | Requires an explicitly confirmed live buyer window scoped only to Rewind, registration, sufficient QOR and allowances; attempts one classical-signed native transfer. |
+
+The signature attacks never send transactions or require a signing credential.
+They use the stored buyer as the `eth_call` caller and read/simulate at the same
+block. Optional agreement IDs default to **1**. A fresh expiry is one hour after
+that block's timestamp. A `PASS` requires `InvalidPqcSignature` with the correct
+agreement state/deadline. Earlier errors such as `InvalidState` or
+`RefundNotAvailable` produce `FAIL` with an explanation: those checks run before
+signature verification. An already-refunded agreement cannot demonstrate
+signature rejection. An empty signature tests the length guard; the forged
+full-length signature exercises the verification path when its prerequisites hold.
+
+To test transfer admission, first fund/register the buyer and open its scoped
+window manually:
+
+```sh
+npm run window -- status
+npm run window -- open --scope-contract
+# Wait for the opening transaction to settle.
+npm run window -- status
+npm run attack-demo -- transfer-out
+npm run attack-demo -- transfer-out --send
+```
+
+**Window enforcement happens when the chain admits the transaction, not in a
+simulation.** Without `--send`, `PASS` means only that the preview sent nothing;
+it establishes no chain rejection. With `--send`, the script uses only the
+classical EVM account (mnemonic index 0, or the existing `PRIVATE_KEY` fallback),
+never a PQC signing secret. It requires REST to explicitly report
+`nativeOnly=false` and `allowedTargets=[Rewind]`; omitted scope fields block the
+attempt. It checks funds and estimates gas before broadcasting.
+
+The attempted transfer is **1 uqor (1,000,000,000,000 wei)** to
+`0x000000000000000000000000000000000000dEaD`. If admitted, that amount and gas
+may be spent. A recognized window refusal during broadcast produces `PASS`
+with the installed classifier's category; that reply alone cannot distinguish
+target scoping from allowances changing after the readiness check. Missing
+registration/window, unrelated RPC errors, or inconclusive outcomes do not
+establish target-scope enforcement and produce `FAIL`. A mined transaction
+produces `FAIL` even if execution reverted, because it was admitted. A hash
+without a receipt is inconclusive. The script never retries a broadcast or
+opens a window automatically; check account history before retrying an uncertain
+outcome.
+
 ## Known limitations
 
 - No timeout after fulfilment: the buyer must authorize release; a fulfilled
@@ -343,11 +450,17 @@ test/probe-pqc.ts                    offline probe decoding/address tests
 ignition/modules/Rewind.ts           no-argument escrow deployment
 scripts/window.ts                    EVM window helper (npm run window)
 scripts/window-utils.ts              offline window argument/account-selection helpers
+scripts/window-scope.ts              scope read-back with omitted-field detection
+scripts/rewind-address.ts            validated public deployment-address selection
 test/window-utils.ts                 indexed window argument and seller checks
+test/window-scope.ts                 offline scope and deployment-address tests
 scripts/probe-pqc.ts                 read-only key-status probe
 scripts/e2e.ts                       manual testnet flow (one step per run)
 scripts/e2e-utils.ts                 pure CLI, digest, expiry and output helpers
 scripts/e2e-errors.ts                categorized diagnostics with sanitized output
+scripts/attack-demo.ts               a classical-key attack demonstration
+scripts/attack-demo-utils.ts         attack arguments and honest result/readiness checks
+test/attack-demo.ts                  offline attack demonstration tests
 test/e2e-utils.ts                    offline tests for the end-to-end helpers
 test/e2e-errors.ts                   offline error categorization and safety tests
 scripts/signing-notes/README.md       client signing flow (no signing code)
