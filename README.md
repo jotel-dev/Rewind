@@ -154,11 +154,18 @@ This demo is our own simulation; Rewind did not take part in the official Q-Day 
 - `create-qorechain-dapp`: the QoreChain Hardhat 3 and viem + wagmi starter kits.
 - QoreChain packages: `@qorechain/sdk`, `@qorechain/evm`, and
   `@qorechain/qorex-rainbowkit`.
-- Smart contract tooling: Hardhat, its viem toolbox and plugins, Hardhat
-  Ignition, viem, and CosmJS (`@cosmjs/stargate`).
-- Frontend libraries: React, React DOM, wagmi, RainbowKit, TanStack Query, Vite,
-  and the Vite React plugin.
-- Development tooling: TypeScript, tsx, and Node.js testing/assertion modules.
+- Smart contract tooling: `hardhat`, `@nomicfoundation/hardhat-toolbox-viem`,
+  `@nomicfoundation/hardhat-viem`, `@nomicfoundation/hardhat-viem-assertions`,
+  `@nomicfoundation/hardhat-network-helpers`,
+  `@nomicfoundation/hardhat-node-test-runner`,
+  `@nomicfoundation/hardhat-keystore`, and `@nomicfoundation/hardhat-verify`.
+- Deployment: `@nomicfoundation/hardhat-ignition`,
+  `@nomicfoundation/hardhat-ignition-viem`, and `@nomicfoundation/ignition-core`.
+- Blockchain clients: `viem` and `@cosmjs/stargate`.
+- Frontend: `react`, `react-dom`, `wagmi`, `@rainbow-me/rainbowkit`,
+  `@tanstack/react-query`, `vite`, and `@vitejs/plugin-react`.
+- Development tooling: `typescript`, `tsx`, `@types/node`, `@types/react`,
+  and `@types/react-dom`. Tests also use Node.js's built-in test and assertion modules.
 - AI assistance: VS Code Codex, recorded in [AI_USAGE.md](AI_USAGE.md).
 
 ## License
