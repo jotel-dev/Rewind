@@ -1,4 +1,5 @@
 # Rewind
+[![Built on QoreChain](https://build.qorechain.io/badge/rewind.svg)](https://build.qorechain.io/p/rewind)
 
 Rewind is a planned post-quantum protected escrow dApp on QoreChain testnet that
 lets a buyer fund an agreement and release payment to its seller after fulfillment.

@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 
 const stages = [
   { name: "Lock", subtitle: "Secure funds", detail: "The buyer deposits QOR into the contract. The agreement records the buyer, seller, amount, terms hash and fulfilment deadline." },
-  { name: "Verify", subtitle: "Check agreement", detail: "Only the stored seller can mark fulfilment before the deadline. The contract verifies the buyer’s signed agreement digest at settlement." },
+  { name: "Verify", subtitle: "ML-DSA-87 signature checked on-chain", detail: "Only the stored seller can mark fulfilment before the deadline. The contract verifies the buyer’s signed agreement digest at settlement." },
   { name: "Release", subtitle: "Send when authorised", detail: "After fulfilment, only the buyer can release funds to the stored seller with a valid ML-DSA-87 signature." },
 ] as const;
 

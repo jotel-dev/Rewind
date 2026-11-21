@@ -1,0 +1,33 @@
+.recent-agreements, .open-payment, .testnet-examples {
+  margin-top: 24px;
+  padding: clamp(18px, 2.2vw, 32px);
+  border-radius: 24px;
+}
+.recent-agreements .payment-card-heading h2 { font-size: clamp(21px, 1.65vw, 28px); }
+.recent-agreements .payment-card-heading p, .recent-agreements > p { font-size: 13px; color: var(--security-muted); }
+.recent-agreements .payment-card-heading > a, .testnet-example > a { font-size: 14px; font-weight: 600; }
+.recent-agreement-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.recent-agreement-list > li { min-width: 0; padding: 18px; border: 1px solid var(--security-rule); border-radius: 16px; background: var(--security-surface); }
+.recent-agreement-heading { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.recent-agreement-heading > a { font-size: 14px; font-weight: 600; }
+.recent-agreement-list .badge, .testnet-examples .badge { border-radius: 9px; }
+.recent-agreement-amount { display: block; margin-top: 16px; font-size: 19px; overflow-wrap: anywhere; }
+.recent-agreement-list dl { margin-bottom: 0; }
+.recent-agreement-list dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding-top: 9px; }
+.recent-agreement-list dt { margin: 0; color: var(--security-muted); font-size: 11px; text-transform: uppercase; }
+.recent-agreement-list dd { font-size: 12px; }
+.recent-agreements p.recent-coverage { margin: 18px 0 0; font-size: 12px; }
+.testnet-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 32px; }
+.testnet-examples h2 { margin: 0; font-size: 21px; }
+.testnet-example { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 12px; }
+.open-payment { max-width: 650px; }
+.open-payment label { font-size: 13px; }
+.open-payment-controls { display: flex; gap: 12px; align-items: stretch; }
+.open-payment-controls input { border-radius: 12px; background: var(--security-solid); border-color: var(--security-rule); }
+.open-payment-controls .button { flex-shrink: 0; }
+.payment-id-error { margin: 12px 0 0; color: #a72d3d; font-size: 13px; }
+[data-theme="dark"] .payment-id-error { color: #ffadba; }
+@media (max-width: 450px) {
+  .open-payment-controls { flex-direction: column; }
+  .testnet-examples { align-items: flex-start; flex-direction: column; }
+}

@@ -6,7 +6,8 @@ import { CONTRACT, publicClient } from "./config.js";
 import { rewindAbi } from "./abi/rewind.js";
 import { recentEvents, RECENT_BLOCKS } from "./chain.js";
 import { Icon, Notice } from "./components.js";
-import { qor, safeError, sameAddress, short, states, utc } from "./lib.js";
+import { paymentId, qor, safeError, sameAddress, short, states, utc } from "./lib.js";
+import { RecentAgreements } from "./RecentAgreements.js";
 import { GlassWallet } from "./PaymentArtwork.js";
 import "./my-payments.css";
 
@@ -36,6 +37,8 @@ export function MyPayments({ navigate }: { navigate: (path: string) => void }) {
   const [filter, setFilter] = useState<PaymentFilter>("All");
   const [search, setSearch] = useState("");
   const [copyFeedback, setCopyFeedback] = useState("");
+  const [openId, setOpenId] = useState("");
+  const [idError, setIdError] = useState("");
   const query = useQuery({ queryKey: ["my-payments", CONTRACT, address], enabled: address !== undefined, retry: 1, refetchInterval: 60000,
     queryFn: async () => {
       const history = await recentEvents(undefined, address!);
@@ -195,6 +198,27 @@ export function MyPayments({ navigate }: { navigate: (path: string) => void }) {
           <a href="/payment" onClick={(event) => { event.preventDefault(); navigate("/payment"); }}>Find by agreement ID <Icon size={13} /></a>
         </div>
       </section>
+
+      <section className="security-glass open-payment" aria-labelledby="open-payment-title">
+        <h2 id="open-payment-title">Open payment by ID</h2>
+        <form noValidate onSubmit={(event) => {
+          event.preventDefault();
+          const id = paymentId(openId.trim());
+          if (id === undefined) { setIdError("Enter a positive whole-number payment ID within the uint256 range."); return; }
+          setIdError("");
+          navigate(`/payment/${id}`);
+        }}>
+          <label htmlFor="open-payment-id">Payment ID</label>
+          <div className="open-payment-controls">
+            <input id="open-payment-id" inputMode="numeric" placeholder="e.g. 3" value={openId}
+              aria-invalid={Boolean(idError)} aria-describedby={idError ? "open-payment-error" : undefined}
+              onChange={(event) => { setOpenId(event.target.value); setIdError(""); }} />
+            <button type="submit" className="button primary payment-primary">Open payment <Icon /></button>
+          </div>
+          {idError && <p className="payment-id-error" id="open-payment-error" role="alert">{idError}</p>}
+        </form>
+      </section>
+      <RecentAgreements navigate={navigate} />
     </div>
   );
 }

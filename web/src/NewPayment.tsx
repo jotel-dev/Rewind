@@ -6,6 +6,7 @@ import { CONTRACT } from "./config.js";
 import { Icon, Notice, TransactionStatus, useTransaction } from "./components.js";
 import { InputError, safeError, sameAddress, short, validatedParty } from "./lib.js";
 import { EscrowVault } from "./PaymentArtwork.js";
+import { RecentAgreements, TestnetExamples } from "./RecentAgreements.js";
 import "./payments-glass.css";
 
 function checkSeller(seller: string, buyer: string | undefined) {
@@ -160,6 +161,8 @@ export function NewPayment({ navigate }: { navigate: (path: string) => void }) {
           </section>
         </aside>
       </div>
+      <TestnetExamples navigate={navigate} />
+      <RecentAgreements navigate={navigate} compact />
     </div>
   );
 }

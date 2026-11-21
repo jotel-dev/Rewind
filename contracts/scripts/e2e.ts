@@ -1,7 +1,7 @@
 import { pathToFileURL } from "node:url";
 import { mkdir, writeFile } from "node:fs/promises";
 import {
-  deriveUnifiedAccount, fetchPqcStatus, isRegisteredPqcKey, pqcSign, type UnifiedAccount,
+  deriveUnifiedAccount, fetchPqcStatus, isRegisteredPqcKey, pqcSign, qoreAddresses, type UnifiedAccount,
 } from "@qorechain/sdk";
 import {
   QORECHAIN_REST_ENDPOINTS, evmWindowCost, evmWindowStatus, qorechainTestnet,
@@ -19,6 +19,7 @@ import {
 } from "./e2e-utils.js";
 import { readPqcKeyStatus } from "./probe-pqc.js";
 import { signatureExport, signatureFilename } from "./signature-export.js";
+import { loadRewindAddress } from "./rewind-address.js";
 import {
   DiagnosticError, diagnose, formatFailure, insufficientFunds, invalidVariable,
   requiredVariable, sellerAddressStatus, sellerMismatch, type FailureContext, type Operation,
@@ -49,16 +50,19 @@ const chain = defineChain({
   testnet: true,
 });
 
-/** Select public address fields only; both cosmos forms come from the same SDK derivation. */
+/** Select public fields only, using the SDK's EVM-to-qor conversion for the contract too. */
 export function publicAddressLines(
   buyer: Pick<UnifiedAccount, "evm" | "cosmos">,
   seller: Pick<UnifiedAccount, "evm" | "cosmos">,
+  contract: Address,
 ): string[] {
   return [
     `buyer 0x: ${getAddress(buyer.evm)}`,
     `buyer qor1: ${buyer.cosmos}`,
     `seller index 1 0x: ${getAddress(seller.evm)}`,
     `seller index 1 qor1: ${seller.cosmos}`,
+    `Rewind 0x: ${getAddress(contract)}`,
+    `Rewind qor1: ${qoreAddresses({ evm: contract }).cosmos}`,
   ];
 }
 
@@ -95,7 +99,8 @@ async function main(): Promise<void> {
     derivedAccounts = { buyer, seller };
     if (command.step === "addresses") {
       const status = sellerAddressStatus(getAddress(seller.evm), process.env.SELLER_ADDRESS);
-      for (const line of publicAddressLines(buyer, seller)) console.log(line);
+      const contract = await loadRewindAddress(undefined);
+      for (const line of publicAddressLines(buyer, seller, contract)) console.log(line);
       console.log(`SELLER_ADDRESS set: ${status.set}`);
       console.log(`SELLER_ADDRESS valid: ${status.valid}`);
       console.log(`SELLER_ADDRESS matches: ${status.matches}`);

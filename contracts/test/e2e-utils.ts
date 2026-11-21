@@ -6,6 +6,7 @@ import {
   keccak256, parseAbiParameters, size, toHex, type Hex,
 } from "viem";
 import { ABI, publicAddressLines } from "../scripts/e2e.js";
+import { loadRewindAddress } from "../scripts/rewind-address.js";
 import {
   actionCode, computeDigest, DEMO_AMOUNT, DEMO_TERMS_HASH, MAX_UINT256,
   fulfilByFrom, oneHourFrom, parseArgs, parseFulfilMinutes, REWIND_ADDRESS,
@@ -13,18 +14,21 @@ import {
 } from "../scripts/e2e-utils.js";
 
 describe("E2E pure helpers (no RPC or environment loading)", () => {
-  it("reports buyer and seller EVM/qor1 addresses without other account fields", () => {
+  it("reports buyer, seller and deployed contract EVM/qor1 addresses without other account fields", async () => {
     const buyerEvm = "0x0000000000000000000000000000000000000011";
     const sellerEvm = "0x0000000000000000000000000000000000000022";
     const taint = "SENSITIVE_TEST_MARKER_DO_NOT_ECHO";
     const buyer = { ...qoreAddresses({ evm: buyerEvm }), mnemonic: taint, privateKey: taint };
     const seller = { ...qoreAddresses({ evm: sellerEvm }), mnemonic: taint, privateKey: taint };
-    const lines = publicAddressLines(buyer, seller);
+    const contract = await loadRewindAddress(undefined);
+    const lines = publicAddressLines(buyer, seller, contract);
     assert.deepEqual(lines, [
       `buyer 0x: ${buyerEvm}`,
       `buyer qor1: ${evmToQor(buyerEvm)}`,
       `seller index 1 0x: ${sellerEvm}`,
       `seller index 1 qor1: ${evmToQor(sellerEvm)}`,
+      `Rewind 0x: ${contract}`,
+      `Rewind qor1: ${evmToQor(contract)}`,
     ]);
     assert.equal(lines.join("\n").includes(taint), false);
   });

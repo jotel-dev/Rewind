@@ -8,7 +8,7 @@
     "dev": "vite",
     "abi": "node scripts/sync-abi.mjs",
     "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters && node scripts/lint.mjs",
-    "test": "node --test test/signature.test.mjs",
+    "test": "node --test test/signature.test.mjs test/public-agreements.test.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"

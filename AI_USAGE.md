@@ -4,6 +4,15 @@ Rewind is built with AI tools, including VS Code Codex, to assist with planning,
 repository inspection, documentation, implementation, and testing. The solo
 developer reviews AI-assisted work and remains responsible for the project.
 
+## Illustration assets
+
+The glass illustrations in `web/src/PaymentArtwork.tsx` and
+`web/src/SecurityStack.tsx` are SVG artwork defined in source. The history records
+glass artwork and dashboard redesign commits, but does not identify an AI image
+tool. The files in `web/public/brand/` have descriptive brand filenames without
+generation provenance. Whether any illustration assets in `web/` were generated
+with an AI tool: **to be confirmed by the developer**.
+
 ## Prompt log
 
 <!-- Add prompts, dates, resulting changes, and review or validation notes here.
@@ -28,3 +37,57 @@ developer reviews AI-assisted work and remains responsible for the project.
 | 20 November 2026 | Prompt 15 | Compare README Credits with the contracts and web package manifests, list direct dependencies by package name, and retain the QoreChain starter kits and create-qorechain-dapp credit. |
 | 20 November 2026 | Prompt 16 | Add the developer's unedited scoped-window and transfer-attempt transcripts and the supplied control note to the evidence, then link the transcripts and available screenshots from the index. |
 | 20 November 2026 | Prompt 17 | Document QCAI stage 1, hash the local report, and check its five findings against the submitted and current source, contract tests, and client receipt handling. Record the MVP limitation and leave stage 2 to do. |
+| 21 November 2026 | Prompt 18 (full prompt below) | Add the QoreChain badge, public contract qor1 address and offline regression, wallet-free recent agreements, ID lookup, live-state testnet links, Security stack label, and illustration provenance. Run local validation, commit on the feature branch, scan tracked filenames and secret assignments without printing contents, then fast-forward main locally and repeat contract tests and web build. Validation results are recorded below after execution. |
+| 21 November 2026 | Prompt 18 continuation | Resume from step 6 after the developer confirmed that the example PRIVATE_KEY value was a scaffold placeholder. Empty only that value, preserve comments and all other example-file bytes, check that code does not load .env.example, and rerun the filename-only safety scan including example files before the requested local commit and fast-forward merge. Do not push. |
+
+### Prompt 18 — 21 November 2026
+
+Context: Rewind, a post-quantum protected escrow dApp. Follow AGENTS.md. Never open or print any .env file or any secret. Do not run git push, git pull or git fetch, do not install packages, and do not send any transaction. The only network traffic allowed is the web app's normal read-only RPC reads while you check the UI. Keep the existing visual style of web/.
+
+PART A: code changes (on the current feature branch)
+
+1. Add this line to the top of README.md, directly under the title: `[![Built on QoreChain](https://build.qorechain.io/badge/rewind.svg)](https://build.qorechain.io/p/rewind)`
+2. In contracts/scripts/e2e.ts, make the "addresses" step also print the Rewind contract's qor1 address (derived from the contract's 0x address in ignition/deployments/chain-9800/deployed_addresses.json, key RewindModule#Rewind, with the same conversion helper used for the seller). Public data only. Add or update an offline test.
+3. Web UI improvements:
+   a. Add a section "Recent agreements on this contract" that works without a wallet, on the My payments page below the wallet-specific list and also on the home page (compact, 5 items). It lists agreements from the contract's AgreementCreated events (real chain reads), newest first, with id, a state badge from getAgreement, amount, short buyer and seller addresses, and a link to /payment/<id>. Use the same event-reading code and block range as the existing My payments page, and handle loading, empty and error states.
+   b. Add an "Open payment by ID" input with a button on the My payments page. It navigates to /payment/<id> after validating that the id is a positive integer.
+   c. On the home page add a short strip "See it on testnet" with links to /payment/3 and /payment/2, labelled from their real on-chain state (read the state; never hardcode "Released" or "Refunded").
+   d. On the Security page change the stack label "Verify / Check agreement" to "Verify / ML-DSA-87 signature checked on-chain". Do not change any other claim.
+4. In AI_USAGE.md say whether any illustration assets in web/ were generated with an AI tool, based on what the repo history or file names show. If you cannot tell, write "to be confirmed by the developer".
+
+PART B: checks and commit
+
+5. Append this prompt (21 November 2026) to the Prompt log in AI_USAGE.md. Run npm test and npm run typecheck in contracts/, and lint, typecheck, test and build in web/. If anything fails, fix it, or stop and report; do not continue to the merge.
+6. Commit everything on the current branch with the message "feat: Built on QoreChain badge, contract qor1 address, public agreements list". Do not commit anything that git ignores.
+
+PART C: safety check (report file names only, never print file contents)
+
+7. List tracked files matching .env (except .env.example), anything under out/, signature-*.json, files named like keys or mnemonics, and any tracked file containing a non-empty QORE_MNEMONIC=, PRIVATE_KEY= or QORE_PQC_RECOVERY_CODE= assignment. If anything is found, stop and report. Do not merge.
+
+PART D: merge into main (locally only)
+
+8. Show "git branch --show-current", "git status --short" and "git log --oneline main..HEAD".
+9. Check that main is an ancestor of the current branch ("git merge-base --is-ancestor main HEAD"). If it is not, stop and report instead of merging.
+10. Run "git checkout main" and "git merge --ff-only <the feature branch>". No force options, no rebase. Then run npm test in contracts/ and the web build again on main.
+11. Do NOT push. Report the final "git log --oneline -5", the test and build results, and the exact command I should run to push.
+
+Report what changed and anything you could not verify.
+
+### Prompt 18 validation
+
+Before committing, contract tests passed (240 tests) on Hardhat's simulated
+network using the cached Solidity compiler, and contract typecheck passed.
+Frontend lint, typecheck, tests (11 tests), and
+`npm run build -- --mode review` passed. Review mode avoids loading project
+environment files. The build reported dependency annotation and bundle-size
+warnings. Browser verification was incomplete; the live states of agreements 2
+and 3 were not independently confirmed during this task.
+
+The initial safety scan stopped on `contracts/.env.example`. With the developer's
+explicit authorization in the continuation, only its PRIVATE_KEY value was
+removed, preserving comments and all other bytes. No tracked executable code or
+configuration references `.env.example`; the explicit environment-file loaders
+use `.env`. The repeated tracked working-tree scan, including both example
+files, found no matching filenames or non-empty protected assignments. No
+environment-file contents or assignment values were printed. Final local merge
+and post-merge validation results are reported in the conversation.

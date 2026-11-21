@@ -19,6 +19,20 @@ export function useAgreement(id: bigint | undefined) {
   return useQuery({ queryKey: ["agreement", CONTRACT, id?.toString()], queryFn: () => publicClient.readContract({ address: CONTRACT, abi: rewindAbi, functionName: "getAgreement", args: [id!] }), enabled: id !== undefined, refetchInterval: 15000, retry: 1 });
 }
 
+export async function readRecentAgreements(limit?: number) {
+  const history = await recentEvents();
+  const ids = [...new Set([...history.logs].reverse().flatMap((log) => log.args.id === undefined ? [] : [log.args.id]))];
+  const payments = await Promise.all(ids.slice(0, limit).map(async (id) => ({
+    id,
+    agreement: await publicClient.readContract({ address: CONTRACT, abi: rewindAbi, functionName: "getAgreement", args: [id] }),
+  })));
+  return { ...history, payments };
+}
+
+export function useRecentAgreements(limit?: number) {
+  return useQuery({ queryKey: ["recent-agreements", CONTRACT, limit ?? "all"], queryFn: () => readRecentAgreements(limit), refetchInterval: 60000, retry: 1 });
+}
+
 /** Bound RPC log scans and show that coverage explicitly; no backend/indexer or invented rows. */
 export async function recentEvents(id?: bigint, wallet?: Address) {
   const latest = await publicClient.getBlockNumber();
@@ -33,6 +47,8 @@ export async function recentEvents(id?: bigint, wallet?: Address) {
         publicClient.getLogs({ address: CONTRACT, event, args: { seller: wallet }, fromBlock: start, toBlock: end }),
       ]);
       logs.push(...buyer, ...seller);
+    } else if (id === undefined) {
+      logs.push(...await publicClient.getLogs({ address: CONTRACT, event: eventAbi[0], fromBlock: start, toBlock: end }));
     } else {
       const found = await publicClient.getLogs({ address: CONTRACT, events: eventAbi, fromBlock: start, toBlock: end });
       logs.push(...found.filter((log) => log.args.id === id));
