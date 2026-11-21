@@ -1,4 +1,5 @@
-import { useAgreement, useRecentAgreements, RECENT_BLOCKS } from "./chain.js";
+import { useAgreement, useAgreements } from "./chain.js";
+import { agreementCoverage } from "./agreements.js";
 import { Badge, Icon, Notice } from "./components.js";
 import { qor, short } from "./lib.js";
 import "./recent-agreements.css";
@@ -6,7 +7,7 @@ import "./recent-agreements.css";
 type Navigation = { navigate: (path: string) => void };
 
 export function RecentAgreements({ navigate, compact = false }: Navigation & { compact?: boolean }) {
-  const query = useRecentAgreements(compact ? 5 : undefined);
+  const query = useAgreements();
   return (
     <section className={`security-glass recent-agreements${compact ? " recent-agreements-compact" : ""}`} aria-labelledby="recent-agreements-title">
       <div className="payment-card-heading">
@@ -15,11 +16,11 @@ export function RecentAgreements({ navigate, compact = false }: Navigation & { c
       </div>
       {query.isPending ? <p role="status">Loading recent agreements…</p>
         : query.error ? <Notice error>Could not load recent agreements from testnet.
-          <button className="inline-button" type="button" onClick={() => void query.refetch()}>Retry scan</button>
+          <button className="inline-button" type="button" onClick={() => void query.refetch()}>Retry reads</button>
         </Notice>
-        : !query.data?.payments.length ? <p role="status">No agreements found in the recent block range.</p>
+        : !query.data?.payments.length ? <p role="status">No agreements found on this contract.</p>
         : <ul className="recent-agreement-list">
-          {query.data.payments.map(({ id, agreement }) => (
+          {query.data.payments.slice(0, compact ? 5 : undefined).map(({ id, agreement }) => (
             <li key={id.toString()}>
               <div className="recent-agreement-heading">
                 <a href={`/payment/${id}`} onClick={(event) => { event.preventDefault(); navigate(`/payment/${id}`); }}>Payment #{id.toString()} <Icon size={14} /></a>
@@ -33,7 +34,7 @@ export function RecentAgreements({ navigate, compact = false }: Navigation & { c
             </li>
           ))}
         </ul>}
-      <p className="recent-coverage">{compact ? "Up to 5 newest agreements from the" : "Agreements from the"} most recent {RECENT_BLOCKS.toLocaleString()} blocks{query.data ? ` (${query.data.fromBlock}–${query.data.toBlock})` : ""}. Older agreements may be absent.</p>
+      <p className="recent-coverage">{query.error ? "Agreement coverage unavailable." : query.data ? agreementCoverage(query.data) : "Reading agreements directly from the Rewind contract…"}</p>
     </section>
   );
 }

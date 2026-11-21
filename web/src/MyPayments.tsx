@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
-import { useQuery } from "@tanstack/react-query";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { CONTRACT, publicClient } from "./config.js";
-import { rewindAbi } from "./abi/rewind.js";
-import { recentEvents, RECENT_BLOCKS } from "./chain.js";
+import { useAgreements } from "./chain.js";
+import { agreementCoverage, walletAgreements } from "./agreements.js";
 import { Icon, Notice } from "./components.js";
 import { paymentId, qor, safeError, sameAddress, short, states, utc } from "./lib.js";
 import { RecentAgreements } from "./RecentAgreements.js";
@@ -39,25 +37,18 @@ export function MyPayments({ navigate }: { navigate: (path: string) => void }) {
   const [copyFeedback, setCopyFeedback] = useState("");
   const [openId, setOpenId] = useState("");
   const [idError, setIdError] = useState("");
-  const query = useQuery({ queryKey: ["my-payments", CONTRACT, address], enabled: address !== undefined, retry: 1, refetchInterval: 60000,
-    queryFn: async () => {
-      const history = await recentEvents(undefined, address!);
-      const ids = [...new Set(history.logs.flatMap((log) => log.args.id === undefined ? [] : [log.args.id]))];
-      const payments = await Promise.all(ids.map(async (id) => ({ id, agreement: await publicClient.readContract({ address: CONTRACT, abi: rewindAbi, functionName: "getAgreement", args: [id] }) })));
-      return { ...history, payments: payments.sort((a, b) => a.id > b.id ? -1 : 1) };
-    },
-  });
+  const query = useAgreements();
   const wrongNetwork = Boolean(address && chainId !== 9800);
-  const records = address && !wrongNetwork && !query.error ? query.data : undefined;
+  const records = address && !wrongNetwork && !query.error && query.data ? walletAgreements(query.data.payments, address) : undefined;
   const loading = Boolean(address && !wrongNetwork && query.isPending);
-  const stats = records?.payments.reduce((counts, { agreement }) => {
+  const stats = records?.reduce((counts, { agreement }) => {
     const state = states[agreement.state];
     if (state && state !== "None") counts[state]++;
     counts.All++;
     return counts;
   }, { All: 0, Funded: 0, Fulfilled: 0, Released: 0, Refunded: 0 });
   const term = search.trim().toLowerCase().replace(/^#/, "");
-  const payments = records?.payments.flatMap(({ id, agreement }) => {
+  const payments = records?.flatMap(({ id, agreement }) => {
     const buyer = sameAddress(address, agreement.buyer);
     const counterparty = buyer ? agreement.seller : agreement.buyer;
     if (filter !== "All" && states[agreement.state] !== filter) return [];
@@ -99,7 +90,7 @@ export function MyPayments({ navigate }: { navigate: (path: string) => void }) {
         <GlassWallet />
       </section>
 
-      <section className="payment-stats" aria-label="Payment statistics for the recent scan">
+      <section className="payment-stats" aria-label="Payment statistics for agreements read from the contract">
         {filters.slice(0, 4).map((state) => (
           <div key={state} className={`security-glass payment-stat tone-${state.toLowerCase()}`}>
             <DashboardIcon name={state} />
@@ -146,14 +137,14 @@ export function MyPayments({ navigate }: { navigate: (path: string) => void }) {
             <p>Use the network control above to view your testnet agreements.</p></div>
         ) : query.isPending ? (
           <div className="payment-loading" role="status">
-            <p>Scanning recent AgreementCreated events…</p>
+            <p>Reading agreements directly from the contract…</p>
             <div aria-hidden="true"><span /><span /><span /></div>
           </div>
         ) : query.error ? (
           <div className="payment-read-error"><Notice error>Could not retrieve payment records. {safeError(query.error)}
-            <button className="inline-button" type="button" onClick={() => void query.refetch()}>Retry scan</button>
+            <button className="inline-button" type="button" onClick={() => void query.refetch()}>Retry reads</button>
           </Notice></div>
-        ) : !query.data?.payments.length ? (
+        ) : !records?.length ? (
           <div className="payment-empty"><GlassWallet compact />
             <h3>No payments yet.</h3><p>Your agreements will appear here once you create or participate in a payment.</p>
             {newPayment("Create your first payment")}
@@ -161,7 +152,7 @@ export function MyPayments({ navigate }: { navigate: (path: string) => void }) {
         ) : !payments?.length ? (
           <div className="payment-empty"><Icon name="wallet" size={28} />
             <h3>{term ? "No matching payments." : `No ${filter.toLowerCase()} payments.`}</h3>
-            <p>Clear the search or choose another status to see other agreements in the scan range.</p>
+            <p>Clear the search or choose another status to see your other agreements.</p>
             <button className="button" type="button" onClick={() => { setFilter("All"); setSearch(""); }}>Show all payments</button>
           </div>
         ) : (
@@ -194,7 +185,7 @@ export function MyPayments({ navigate }: { navigate: (path: string) => void }) {
           </>
         )}
         <div className="panel-foot">
-          <p>Counts and records cover the most recent {RECENT_BLOCKS.toLocaleString()} blocks{records ? ` (${records.fromBlock}–${records.toBlock})` : ""}. Older agreements may be absent.</p>
+          <p>{query.error ? "Agreement coverage unavailable." : query.data ? agreementCoverage(query.data) : "Reading agreements directly from the Rewind contract…"}</p>
           <a href="/payment" onClick={(event) => { event.preventDefault(); navigate("/payment"); }}>Find by agreement ID <Icon size={13} /></a>
         </div>
       </section>

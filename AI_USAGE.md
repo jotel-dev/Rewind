@@ -39,6 +39,7 @@ with an AI tool: **to be confirmed by the developer**.
 | 20 November 2026 | Prompt 17 | Document QCAI stage 1, hash the local report, and check its five findings against the submitted and current source, contract tests, and client receipt handling. Record the MVP limitation and leave stage 2 to do. |
 | 21 November 2026 | Prompt 18 (full prompt below) | Add the QoreChain badge, public contract qor1 address and offline regression, wallet-free recent agreements, ID lookup, live-state testnet links, Security stack label, and illustration provenance. Run local validation, commit on the feature branch, scan tracked filenames and secret assignments without printing contents, then fast-forward main locally and repeat contract tests and web build. Validation results are recorded below after execution. |
 | 21 November 2026 | Prompt 18 continuation | Resume from step 6 after the developer confirmed that the example PRIVATE_KEY value was a scaffold placeholder. Empty only that value, preserve comments and all other example-file bytes, check that code does not load .env.example, and rerun the filename-only safety scan including example files before the requested local commit and fast-forward merge. Do not push. |
+| 21 November 2026 | Prompt 19 (full prompt below) | Replace the two agreement-list log scans with shared cached ID enumeration in batches of 10, ending only at ABI-decoded AgreementNotFound or the 500-ID cap. Preserve wallet filters and visual styling, report direct-read coverage, add offline mocked-client and cache tests, and leave the detail timeline's 20,000-block range unchanged. Run frontend checks and simulated contract tests, then commit locally without pushing. |
 
 ### Prompt 18 — 21 November 2026
 
@@ -91,3 +92,30 @@ use `.env`. The repeated tracked working-tree scan, including both example
 files, found no matching filenames or non-empty protected assignments. No
 environment-file contents or assignment values were printed. Final local merge
 and post-merge validation results are reported in the conversation.
+
+### Prompt 19 — 21 November 2026
+
+Context: Rewind web UI in web/. Follow AGENTS.md. Never open or print any .env file or any secret. Do not run git push, git pull or git fetch, do not install packages and do not send any transaction. Normal read-only RPC reads by the web app are fine. Keep the existing visual style.
+
+Problem: "Recent agreements on this contract" and the "Payment records" list on My payments only scan the most recent 20,000 blocks of event logs, so agreements 1 to 3 (created 19 to 20 November 2026) never appear and the page looks empty.
+
+1. Replace the log scan for these lists with enumeration by ID: read getAgreement(id) for id = 1, 2, 3, ... in batches (for example 10 at a time with viem multicall or parallel reads) until the contract reverts with the custom error AgreementNotFound (decode it from the Rewind ABI), with a hard cap of 500 IDs. Cache the results in memory and handle loading, empty and error states (an RPC failure must not look like "no payments").
+2. "Recent agreements on this contract" (My payments and home page) shows the newest agreements first, from this enumeration, with id, state badge, amount, short buyer and seller addresses, and a link to /payment/<id>. It must work without a wallet.
+3. "Payment records" for the connected wallet filters the same enumeration by buyer or seller (case-insensitive address match) and keeps the existing state filter chips, counts and search. Replace the footer note about the 20,000-block range with: "Read directly from the Rewind contract: agreements 1 to N." where N is the real last id found.
+4. Leave the payment detail page's timeline logic alone, unless it also depends on the same 20,000-block range; if it does, report that instead of changing it.
+5. Add offline tests with a mocked client for the enumeration (stops at AgreementNotFound, respects the cap, handles a failing RPC call without reporting an empty list). Run lint, typecheck, tests and build in web/, and npm test in contracts/. Append this prompt (21 November 2026) to the Prompt log in AI_USAGE.md.
+6. Commit on the current branch with the message "fix(web): list agreements by ID instead of a 20,000-block log scan". Do not push. Report what changed, which files changed, and anything you could not verify.
+
+### Prompt 19 validation
+
+Frontend lint, typecheck, all 17 offline tests, and
+`npm run build -- --mode review` passed. Review mode avoided loading project
+environment files; the build reported dependency annotation and bundle-size
+warnings. All 240 contract tests passed on Hardhat's simulated network with the
+cached compiler and telemetry disabled. No packages were installed and no
+transactions or remote Git operations were performed.
+
+The detail timeline still uses `recentEvents(id)` with the most recent 20,000
+blocks and was left unchanged. The lists now read agreements directly, share an
+in-memory cache, and report their actual ID coverage and any 500-ID cap. Live
+testnet data and browser rendering were not verified in this run.

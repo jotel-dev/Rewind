@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { parseAbi, type Address } from "viem";
 import { CONTRACT, publicClient } from "./config.js";
 import { rewindAbi } from "./abi/rewind.js";
+import { enumerateAgreements } from "./agreements.js";
 
 export const eventAbi = parseAbi([
   "event AgreementCreated(uint256 indexed id, address indexed buyer, address indexed seller, uint256 amount, bytes32 termsHash, uint64 fulfilBy)",
@@ -19,18 +20,13 @@ export function useAgreement(id: bigint | undefined) {
   return useQuery({ queryKey: ["agreement", CONTRACT, id?.toString()], queryFn: () => publicClient.readContract({ address: CONTRACT, abi: rewindAbi, functionName: "getAgreement", args: [id!] }), enabled: id !== undefined, refetchInterval: 15000, retry: 1 });
 }
 
-export async function readRecentAgreements(limit?: number) {
-  const history = await recentEvents();
-  const ids = [...new Set([...history.logs].reverse().flatMap((log) => log.args.id === undefined ? [] : [log.args.id]))];
-  const payments = await Promise.all(ids.slice(0, limit).map(async (id) => ({
-    id,
-    agreement: await publicClient.readContract({ address: CONTRACT, abi: rewindAbi, functionName: "getAgreement", args: [id] }),
-  })));
-  return { ...history, payments };
-}
-
-export function useRecentAgreements(limit?: number) {
-  return useQuery({ queryKey: ["recent-agreements", CONTRACT, limit ?? "all"], queryFn: () => readRecentAgreements(limit), refetchInterval: 60000, retry: 1 });
+/** All lists share TanStack Query's in-memory cache, including disconnected views. */
+export const agreementsQueryOptions = {
+  queryKey: ["agreements", 9800, CONTRACT], queryFn: () => enumerateAgreements(publicClient, CONTRACT),
+  staleTime: 60000, gcTime: 300000, refetchInterval: 60000, retry: 1,
+};
+export function useAgreements() {
+  return useQuery(agreementsQueryOptions);
 }
 
 /** Bound RPC log scans and show that coverage explicitly; no backend/indexer or invented rows. */
