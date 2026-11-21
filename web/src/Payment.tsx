@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { encodeFunctionData } from "viem";
 import { rewindAbi } from "./abi/rewind.js";
 import { CONTRACT, publicClient, transactionUrl, addressUrl } from "./config.js";
-import { recentEvents, useAgreement, useHead, RECENT_BLOCKS } from "./chain.js";
+import { useAgreement, useHead, useTimeline } from "./chain.js";
+import { TIMELINE_SCAN_LIMIT, timelineInconsistency } from "./timeline.js";
 import { Badge, ChainText, Empty, Icon, Notice, TransactionStatus, useTransaction } from "./components.js";
 import { parseSignature, paymentId, qor, safeError, sameAddress, short, utc, type ImportedSignature, type SettlementAction } from "./lib.js";
 
@@ -56,11 +57,12 @@ function SignaturePanel({ id, action, now, afterSend }: { id: bigint; action: Se
 export function Payment({ rawId }: { rawId: string }) {
   const id = paymentId(rawId); const agreement = useAgreement(id); const head = useHead();
   const { address, chainId } = useAccount(); const tx = useTransaction(); const cache = useQueryClient();
-  const timeline = useQuery({ queryKey: ["timeline", CONTRACT, id?.toString()], queryFn: () => recentEvents(id), enabled: id !== undefined, retry: 1, refetchInterval: 30000 });
+  const timeline = useTimeline(id);
   const [lookup, setLookup] = useState("");
   function refresh() { void cache.invalidateQueries({ queryKey: ["agreement"] }); void cache.invalidateQueries({ queryKey: ["timeline"] }); }
   if (!id) return <><div className="page-heading"><div><p className="eyebrow">PAYMENT LOOKUP</p><h1>Find your payment.</h1><p className="lede">Enter an on-chain agreement ID to view its status.</p></div></div><form className="panel lookup-form" action={`/payment/${lookup}`}><label htmlFor="lookup-id">Agreement ID</label><input id="lookup-id" inputMode="numeric" pattern="[0-9]+" required value={lookup} onChange={(event) => setLookup(event.target.value)} placeholder="e.g. 2" /><button className="button primary" type="submit"><Icon name="arrow" />OPEN PAYMENT</button></form></>;
   const current = agreement.data;
+  const inconsistency = current && timeline.data && !timeline.error && !agreement.error ? timelineInconsistency(timeline.data.logs, current.state) : undefined;
   const buyer = current && sameAddress(address, current.buyer); const seller = current && sameAddress(address, current.seller);
   const now = head.data?.timestamp; const canSend = chainId === 9800;
   const action: SettlementAction | undefined = current && buyer && canSend && now !== undefined ? current.state === 2 ? "release" : current.state === 1 && now > current.fulfilBy ? "refund" : undefined : undefined;
@@ -72,6 +74,19 @@ export function Payment({ rawId }: { rawId: string }) {
       <aside>{action && now !== undefined ? <SignaturePanel key={`${id}-${action}`} id={id} action={action} now={now} afterSend={refresh} /> : <section className="panel action-panel"><p className="eyebrow">NEXT ACTION</p><h2>{current.state === 3 ? "Payment released." : current.state === 4 ? "Payment refunded." : "Every step, authorised."}</h2>
         {seller && current.state === 1 && now !== undefined && now < current.fulfilBy ? <><p>Mark fulfilment only once you have completed the agreed work. The buyer must then authorise release.</p><button className="button primary full-width" disabled={!canSend || tx.busy} onClick={async () => { const receipt = await tx.submit(encodeFunctionData({ abi: rewindAbi, functionName: "markFulfilled", args: [id] })); if (receipt) refresh(); }}><Icon name="check" />MARK FULFILLED</button><TransactionStatus tx={tx} /></> : <p>{current.state === 3 ? "The escrow paid the stored seller. This agreement is terminal." : current.state === 4 ? "The escrow paid the stored buyer. This agreement is terminal." : !address ? "Connect the stored buyer or seller wallet to see available actions." : !canSend ? "Switch to QoreChain testnet to act on this agreement." : buyer && current.state === 1 ? "The seller can mark fulfilment before the deadline. If it remains unfulfilled, you can authorise a refund after the deadline." : seller && current.state === 2 ? "Waiting for the buyer's post-quantum authorisation to release payment." : seller && current.state === 1 ? "The fulfilment deadline has passed. The buyer can authorise a refund." : "Only the stored buyer and seller can act on this agreement."}</p>}
         {head.isPending && <p>Reading chain time…</p>}{head.error && <p role="alert">Chain time is unavailable; actions remain disabled.</p>}<p className="field-help">A fulfilled agreement has no timeout refund. No admin can intervene.</p></section>}</aside>
-    </div><section className="panel timeline-panel"><div className="panel-heading"><h2>On-chain timeline</h2><span className="eyebrow">CONTRACT EVENTS</span></div>{timeline.isPending ? <p>Reading contract events…</p> : timeline.error ? <Notice error>{safeError(timeline.error)} <button className="inline-button" onClick={() => void timeline.refetch()}>Retry</button></Notice> : timeline.data?.logs.length ? <ol className="timeline">{timeline.data.logs.map((log) => <li key={`${log.transactionHash}-${log.logIndex}`}><span className="timeline-dot" /><div><h3>{labels[log.eventName ?? ""] ?? "Contract event"}</h3><p className="mono">BLOCK {log.blockNumber.toString()}</p></div><a href={transactionUrl(log.transactionHash)} target="_blank" rel="noreferrer" className="mono">{short(log.transactionHash)} <Icon name="external" size={13} /></a></li>)}</ol> : <Empty title="No events in this range">This agreement may be older than the recent scan. Its stored details above are read directly from the contract.</Empty>}<p className="field-help">History covers the most recent {RECENT_BLOCKS.toLocaleString()} blocks{timeline.data ? ` (${timeline.data.fromBlock}–${timeline.data.toBlock})` : ""}; older events may be absent. Explorer links show the full transaction record.</p></section></>}
+    </div><section className="panel timeline-panel">
+      <div className="panel-heading"><h2>On-chain timeline</h2><span className="eyebrow">CONTRACT EVENTS</span></div>
+      {timeline.isPending ? <p role="status">Reading this agreement's events from the contract history…</p>
+        : timeline.error ? <Notice error>Could not read the agreement timeline. {safeError(timeline.error)} <button className="inline-button" onClick={() => void timeline.refetch()}>Retry timeline</button></Notice>
+        : <>
+          {timeline.isFetching && <p role="status">Refreshing agreement history…</p>}
+          {inconsistency && <Notice error>{inconsistency} <button className="inline-button" onClick={refresh}>Refresh agreement and timeline</button></Notice>}
+          {timeline.data?.limitReached && <Notice>Timeline scan limit reached: {TIMELINE_SCAN_LIMIT.toLocaleString()} blocks scanned without finding AgreementCreated for this ID. Older events may be missing. Set VITE_REWIND_DEPLOY_BLOCK to the contract's deployment block to read its full history.</Notice>}
+          {timeline.data && !timeline.data.creationFound && !timeline.data.limitReached && <Notice>AgreementCreated was not found in the scanned range. The timeline may be incomplete; check the deployment block setting and retry.</Notice>}
+          {timeline.data?.logs.length ? <ol className="timeline">{timeline.data.logs.map((log) => <li key={`${log.transactionHash}-${log.logIndex}`}><span className="timeline-dot" /><div><h3>{labels[log.eventName]}</h3><p className="mono">BLOCK {log.blockNumber.toString()}</p></div><a href={transactionUrl(log.transactionHash)} target="_blank" rel="noreferrer" className="mono">{short(log.transactionHash)} <Icon name="external" size={13} /></a></li>)}</ol>
+            : <Empty title="No events returned for this agreement">The stored agreement above is authoritative. This history is incomplete; no events have been inferred from its state.</Empty>}
+          {timeline.data && <p className="field-help">History for agreement #{id.toString()} covers blocks {timeline.data.fromBlock.toString()}–{timeline.data.toBlock.toString()} ({timeline.data.scannedBlocks.toLocaleString()} blocks){timeline.data.deploymentKnown ? ", from the configured contract deployment block" : ", scanned backwards from the latest block"}. Explorer links show each transaction.</p>}
+        </>}
+    </section></>}
   </>;
 }

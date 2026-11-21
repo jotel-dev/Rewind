@@ -8,16 +8,16 @@ import ts from "typescript";
 // Exercise the real readers with an offline client, never a live RPC or env files.
 const directory = new URL("../.review/tests/public-agreements/", import.meta.url);
 await mkdir(new URL("abi/", directory), { recursive: true });
-for (const file of ["agreements", "chain", "lib", "abi/rewind"]) {
+for (const file of ["agreements", "chain", "timeline", "lib", "abi/rewind"]) {
   const source = await readFile(new URL(`../src/${file}.ts`, import.meta.url), "utf8");
   const result = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } });
   await writeFile(new URL(`${file}.js`, directory), result.outputText);
 }
-await writeFile(new URL("config.js", directory), 'export const CONTRACT = "0x0000000000000000000000000000000000000011"; export const publicClient = {};\n');
+await writeFile(new URL("config.js", directory), 'export const CONTRACT = "0x0000000000000000000000000000000000000011"; export const DEPLOY_BLOCK = 10320988n; export const publicClient = {};\n');
 const { publicClient, CONTRACT } = await import(new URL("config.js", directory));
 const { rewindAbi } = await import(new URL("abi/rewind.js", directory));
 const { enumerateAgreements, AGREEMENT_CAP, AGREEMENT_BATCH_SIZE, walletAgreements, agreementCoverage } = await import(new URL("agreements.js", directory));
-const { agreementsQueryOptions, recentEvents, RECENT_BLOCKS } = await import(new URL("chain.js", directory));
+const { agreementsQueryOptions } = await import(new URL("chain.js", directory));
 const missingData = encodeErrorResult({ abi: rewindAbi, errorName: "AgreementNotFound" });
 const seller = "0x00000000000000000000000000000000000000aB";
 
@@ -134,15 +134,4 @@ describe("Agreement enumeration (offline)", () => {
     } finally { cache.clear(); }
   });
 
-  it("preserves the payment detail timeline's existing 20,000-block event range", async () => {
-    const ranges = [];
-    publicClient.getBlockNumber = async () => 25000n;
-    publicClient.getLogs = async (request) => { ranges.push(request); return []; };
-    const history = await recentEvents(2n);
-    assert.equal(history.fromBlock, 25000n - RECENT_BLOCKS);
-    assert.equal(history.toBlock, 25000n);
-    assert.equal(ranges[0].fromBlock, 5000n);
-    assert.equal(ranges.at(-1).toBlock, 25000n);
-    assert.equal(ranges.length, 11);
-  });
 });

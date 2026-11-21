@@ -40,6 +40,7 @@ with an AI tool: **to be confirmed by the developer**.
 | 21 November 2026 | Prompt 18 (full prompt below) | Add the QoreChain badge, public contract qor1 address and offline regression, wallet-free recent agreements, ID lookup, live-state testnet links, Security stack label, and illustration provenance. Run local validation, commit on the feature branch, scan tracked filenames and secret assignments without printing contents, then fast-forward main locally and repeat contract tests and web build. Validation results are recorded below after execution. |
 | 21 November 2026 | Prompt 18 continuation | Resume from step 6 after the developer confirmed that the example PRIVATE_KEY value was a scaffold placeholder. Empty only that value, preserve comments and all other example-file bytes, check that code does not load .env.example, and rerun the filename-only safety scan including example files before the requested local commit and fast-forward merge. Do not push. |
 | 21 November 2026 | Prompt 19 (full prompt below) | Replace the two agreement-list log scans with shared cached ID enumeration in batches of 10, ending only at ABI-decoded AgreementNotFound or the 500-ID cap. Preserve wallet filters and visual styling, report direct-read coverage, add offline mocked-client and cache tests, and leave the detail timeline's 20,000-block range unchanged. Run frontend checks and simulated contract tests, then commit locally without pushing. |
+| 21 November 2026 | Prompt 20 (full prompt below) | Read each agreement's indexed events from deployment block 10320988, verified in the public Ignition receipt; add an unknown-block fallback capped at 600,000 blocks, 20,000-block requests with four concurrent reads and retries, per-ID memory caching, scan coverage and state-inconsistency notes. Document the public setting without reading environment files, add mocked offline tests, run frontend checks and simulated contract tests, and commit locally without pushing. |
 
 ### Prompt 18 — 21 November 2026
 
@@ -119,3 +120,32 @@ The detail timeline still uses `recentEvents(id)` with the most recent 20,000
 blocks and was left unchanged. The lists now read agreements directly, share an
 in-memory cache, and report their actual ID coverage and any 500-ID cap. Live
 testnet data and browser rendering were not verified in this run.
+
+### Prompt 20 — 21 November 2026
+
+Context: Rewind web UI in web/. Follow AGENTS.md. Never open or print any .env file or any secret. Do not run git push, git pull or git fetch, do not install packages and do not send any transaction. Normal read-only RPC reads by the web app are fine. Keep the existing visual style.
+
+Problem: the payment detail timeline (/payment/<id>) reads events from only the most recent 20,000 blocks, so agreements created earlier (ids 1 to 3, created 19 to 20 November 2026) show an empty timeline.
+
+1. Change the timeline to read the events for that single agreement id (AgreementCreated, AgreementFulfilled, AgreementReleased, AgreementRefunded all have an indexed id) by scanning from the contract's deployment block to the latest block instead of the last 20,000 blocks. Add a config value VITE_REWIND_DEPLOY_BLOCK (document it in web/.env.example), with the default <DEPLOY_BLOCK>. If the default is "unknown", scan backwards from the latest block in chunks of 20,000 blocks, filtered by id, until AgreementCreated for that id is found or 600,000 blocks have been scanned, and say in the UI when the scan limit was reached.
+2. Use chunked getLogs requests (20,000 blocks each, 3 to 5 in parallel) with retry on failure, a visible loading state, and an error state that never looks like an empty timeline. Cache the result per id in memory. Order events by block number then log index and link each to https://dashboard.qorechain.io/explorer/tx/{hash}.
+3. The timeline must agree with the on-chain state from getAgreement; if the final event in the timeline does not match the current state, show a clear inconsistency note instead of hiding it.
+4. Add offline tests with a mocked client (chunking, ordering, retry, missing events, scan limit). Run lint, typecheck, tests and build in web/, and npm test in contracts/. Append this prompt (21 November 2026) to the Prompt log in AI_USAGE.md.
+5. Commit on the current branch with the message "fix(web): read the agreement timeline from the deployment block". Do not push. Report what changed and anything you could not verify.
+
+### Prompt 20 validation
+
+Frontend lint, typecheck, all 26 offline tests, and
+`npm run build -- --mode review` passed. Review mode avoided loading environment
+files. The build reported dependency annotation and bundle-size warnings. All
+240 contract tests passed on Hardhat's simulated network, using the cached
+compiler with telemetry disabled.
+
+The default deployment block was checked against the public Ignition receipt,
+not a live RPC. The environment example was documented by appending only the
+public setting and explanatory comments, without reading or printing its
+contents. Offline tests cover ID filters, chunk coverage and concurrency,
+ordering and deduplication, retries and exhausted failures, backward discovery,
+scan limits, missing events, state inconsistencies, and per-ID memory caching.
+Live testnet histories and browser rendering were not verified in this run.
+No packages were installed, transactions sent, or remote Git operations run.

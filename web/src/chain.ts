@@ -1,15 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { parseAbi, type Address } from "viem";
-import { CONTRACT, publicClient } from "./config.js";
+import { CONTRACT, DEPLOY_BLOCK, publicClient } from "./config.js";
 import { rewindAbi } from "./abi/rewind.js";
 import { enumerateAgreements } from "./agreements.js";
+import { readTimeline } from "./timeline.js";
 
-export const eventAbi = parseAbi([
-  "event AgreementCreated(uint256 indexed id, address indexed buyer, address indexed seller, uint256 amount, bytes32 termsHash, uint64 fulfilBy)",
-  "event AgreementFulfilled(uint256 indexed id)", "event AgreementReleased(uint256 indexed id, address indexed seller, uint256 amount)",
-  "event AgreementRefunded(uint256 indexed id, address indexed buyer, uint256 amount)",
-]);
-export const RECENT_BLOCKS = 20_000n;
 export function useHead() {
   return useQuery({ queryKey: ["head", CONTRACT], queryFn: async () => {
     if (await publicClient.getChainId() !== 9800) throw new Error("Wrong RPC chain");
@@ -29,27 +23,11 @@ export function useAgreements() {
   return useQuery(agreementsQueryOptions);
 }
 
-/** Bound RPC log scans and show that coverage explicitly; no backend/indexer or invented rows. */
-export async function recentEvents(id?: bigint, wallet?: Address) {
-  const latest = await publicClient.getBlockNumber();
-  const fromBlock = latest > RECENT_BLOCKS ? latest - RECENT_BLOCKS : 0n;
-  const logs = [];
-  for (let start = fromBlock; start <= latest; start += 2000n) {
-    const end = start + 1999n > latest ? latest : start + 1999n;
-    if (wallet) {
-      const event = eventAbi[0];
-      const [buyer, seller] = await Promise.all([
-        publicClient.getLogs({ address: CONTRACT, event, args: { buyer: wallet }, fromBlock: start, toBlock: end }),
-        publicClient.getLogs({ address: CONTRACT, event, args: { seller: wallet }, fromBlock: start, toBlock: end }),
-      ]);
-      logs.push(...buyer, ...seller);
-    } else if (id === undefined) {
-      logs.push(...await publicClient.getLogs({ address: CONTRACT, event: eventAbi[0], fromBlock: start, toBlock: end }));
-    } else {
-      const found = await publicClient.getLogs({ address: CONTRACT, events: eventAbi, fromBlock: start, toBlock: end });
-      logs.push(...found.filter((log) => log.args.id === id));
-    }
-  }
-  const unique = [...new Map(logs.map((log) => [`${log.transactionHash}:${log.logIndex}`, log])).values()];
-  return { logs: unique.sort((a, b) => Number(a.blockNumber - b.blockNumber) || Number(a.logIndex - b.logIndex)), fromBlock, toBlock: latest };
+export function timelineQueryOptions(id: bigint | undefined) {
+  return { queryKey: ["timeline", CONTRACT, id?.toString(), DEPLOY_BLOCK?.toString() ?? "unknown"],
+    queryFn: () => readTimeline(publicClient, CONTRACT, id!, DEPLOY_BLOCK), enabled: id !== undefined,
+    staleTime: 30000, gcTime: 300000, refetchInterval: 30000, retry: false as const };
+}
+export function useTimeline(id: bigint | undefined) {
+  return useQuery(timelineQueryOptions(id));
 }

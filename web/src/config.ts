@@ -1,8 +1,10 @@
 import { createPublicClient, defineChain, getAddress, http, isAddress, zeroAddress } from "viem";
+import { parseDeployBlock } from "./timeline.js";
 
 const configuredAddress = import.meta.env.VITE_REWIND_ADDRESS ?? "0x775BbF36986FaBC54b64955c1D9b8EdB388E7c20";
 if (!isAddress(configuredAddress) || getAddress(configuredAddress) === zeroAddress) throw new Error("VITE_REWIND_ADDRESS must be a valid, nonzero contract address.");
 export const CONTRACT = getAddress(configuredAddress);
+export const DEPLOY_BLOCK = parseDeployBlock(import.meta.env.VITE_REWIND_DEPLOY_BLOCK);
 export const RPC_URL = import.meta.env.VITE_RPC_URL ?? "https://evm-testnet.qore.host";
 export const chain = defineChain({
   id: 9800, name: "QoreChain Testnet", nativeCurrency: { name: "QOR", symbol: "QOR", decimals: 18 },

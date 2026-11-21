@@ -28,12 +28,13 @@ For a review that must not load the project's environment files, use
 
 ## Public configuration
 
-The example configuration contains these two public settings:
+The example configuration documents these public settings:
 
 | Variable | Default |
 | --- | --- |
 | `VITE_REWIND_ADDRESS` | `0x775BbF36986FaBC54b64955c1D9b8EdB388E7c20` |
 | `VITE_RPC_URL` | `https://evm-testnet.qore.host` |
+| `VITE_REWIND_DEPLOY_BLOCK` | `10320988` (the public chain-9800 Ignition deployment receipt); accepts `unknown` for bounded backward discovery. |
 
 Chain ID is fixed at **9800**. Only testnet is configured in wagmi. A wallet on
 another chain receives a banner and transaction actions are disabled. The app
@@ -50,14 +51,27 @@ the contract, run `npm run abi` to regenerate it without copying bytecode.
 | `/` | Validate seller, amount, order reference and deadline; hash the exact reference in the browser; simulate creation, request wallet approval and confirm the real receipt before opening the payment. |
 | `/payment/:id` | Read the stored agreement, countdown and contract-event timeline. Show seller fulfilment or buyer signature-import settlement actions only when the role/state/deadline allow them. |
 | `/payment` | Look up an agreement by its positive integer ID. |
-| `/payments` | Scan AgreementCreated logs where the connected account is buyer or seller, read current states, and filter by state. |
+| `/payments` | Enumerate agreement storage by ID, filter the connected wallet's records by buyer/seller and state, and show public recent agreements without a wallet. |
 | `/security` | Explain contract signature protection versus window admission and ordinary EVM signatures; show limitations, source, explorer and evidence links. |
 
-Timelines and My payments scan the most recent **20,000 blocks** in bounded
-2,000-block requests. The UI displays the range and warns that older agreements
-may be absent. Direct agreement lookup still reads storage for older IDs.
+Agreement lists share an in-memory cache and read IDs in batches of 10, stopping
+at AgreementNotFound or 500 IDs. Home shows the five newest returned agreements.
+
+Each payment timeline reads its four event types using the contract address and
+indexed agreement ID, from the configured deployment block through a fixed
+latest-block snapshot. Requests cover at most **20,000 blocks** each, with four
+requests active at a time and up to three attempts per failed request. If the
+deployment block is `unknown`, the scan proceeds backwards until AgreementCreated
+is found or **600,000 blocks** have been scanned (or genesis is reached). The UI
+shows the actual range, a scan-limit warning, missing creation events, and any
+mismatch between the last event and the current getAgreement state. RPC errors
+are shown as errors. Results are cached per contract, ID and deployment-block
+setting in memory for five minutes, refreshed every 30 seconds while displayed.
+Set the matching deployment block when using a different contract address.
+
 Reads and events use the real RPC; no sample agreements or successful receipts
-are fabricated. Without a wallet, My payments displays a connection state.
+are fabricated. Wallet-specific records require a wallet; public lists and
+payment details do not.
 
 ## Signature handoff
 
