@@ -41,6 +41,7 @@ with an AI tool: **to be confirmed by the developer**.
 | 21 November 2026 | Prompt 18 continuation | Resume from step 6 after the developer confirmed that the example PRIVATE_KEY value was a scaffold placeholder. Empty only that value, preserve comments and all other example-file bytes, check that code does not load .env.example, and rerun the filename-only safety scan including example files before the requested local commit and fast-forward merge. Do not push. |
 | 21 November 2026 | Prompt 19 (full prompt below) | Replace the two agreement-list log scans with shared cached ID enumeration in batches of 10, ending only at ABI-decoded AgreementNotFound or the 500-ID cap. Preserve wallet filters and visual styling, report direct-read coverage, add offline mocked-client and cache tests, and leave the detail timeline's 20,000-block range unchanged. Run frontend checks and simulated contract tests, then commit locally without pushing. |
 | 21 November 2026 | Prompt 20 (full prompt below) | Read each agreement's indexed events from deployment block 10320988, verified in the public Ignition receipt; add an unknown-block fallback capped at 600,000 blocks, 20,000-block requests with four concurrent reads and retries, per-ID memory caching, scan coverage and state-inconsistency notes. Document the public setting without reading environment files, add mocked offline tests, run frontend checks and simulated contract tests, and commit locally without pushing. |
+| 22 November 2026 | Prompt 21 (full prompt below) | Rewrite the root README for judges using repository source, evidence, audit notes and current simulated test output (240 passing). Preserve the QoreChain badge and existing credits/licence, distinguish sent transactions from simulations and unresolved evidence, retain limitations, document the read-only review path and manual setup, and commit locally without pushing. |
 
 ### Prompt 18 — 21 November 2026
 
@@ -149,3 +150,41 @@ ordering and deduplication, retries and exhausted failures, backward discovery,
 scan limits, missing events, state inconsistencies, and per-ID memory caching.
 Live testnet histories and browser rendering were not verified in this run.
 No packages were installed, transactions sent, or remote Git operations run.
+
+### Prompt 21 — 22 November 2026
+
+Context: Rewind. Follow AGENTS.md. Never open or print any .env file or any secret. Do not run git push, git pull or git fetch, do not install packages, and do not send any transaction. Do not run network commands.
+
+Rewrite the top-level README.md for judges. Use only facts that exist in this repo (contracts, tests, docs/evidence, docs/AUDIT.md, docs/audit, scripts, web). Keep the "Built on QoreChain" badge directly under the title. Structure:
+
+1. One-sentence pitch and a 3-line "what it does".
+2. "Review in 5 minutes": the shortest path for a judge: open docs/evidence/README.md, run npm test in contracts/ (say the expected number of passing tests, read from the current test output), open the web app read-only (the exact commands), and look at agreements 1 to 3 on testnet.
+3. Live testnet facts table: network, chain id, contract address, deployer/buyer and seller accounts (public addresses), with links to the explorer.
+4. "How it works": the state machine (Funded, Fulfilled, Released, Refunded), who can do what, and the release/refund authorisation (pqcKeyStatus key, pqcVerify, the digest fields from Rewind.sol, not a nonce). A simple text diagram.
+5. "Proven on testnet" with transaction hashes and gas for create, fulfil, release, refund, the forged-refund rejection and the scoped window, each linking to docs/evidence. Say precisely what is simulated versus sent, and keep the honest notes (the out-of-scope transfer was refused with a window refusal labelled "exhausted" and that alone does not prove the scope was the cause).
+6. Security and limitations: copy the known limitations from the contract README and docs/AUDIT.md (no timeout after fulfilment, seller contract can block release, buyer chooses signature expiry, seller's markFulfilled is not PQ-signed, mocks in tests are not real cryptography, QoreX in the tested build cannot sign ML-DSA or send EVM transactions from the browser so writes go through the CLI runner, the web app is a live read-only view).
+7. QCAI audit: stage 1 result (75/100, MEDIUM, five findings) linking docs/AUDIT.md; state that stage 2 is not done and do not claim a stage 2 result.
+8. "What we did not do": the official Q-Day Drill (registration closed; the attack demonstration is our own simulation), disputes, tokens, mainnet.
+9. Setup and commands for contracts and web, the e2e runner steps, environment variable NAMES only (never values), and the account/window prerequisites.
+10. AI usage: link AI_USAGE.md and say the project is built with AI tools (VS Code Codex) with the human directing and verifying; mention whether illustration assets were AI-generated exactly as AI_USAGE.md says.
+11. Credits (keep the existing list) and licence (MIT).
+
+Do not state anything you cannot verify from the repo; if unsure, leave it out and list it in your report. Keep it clear and scannable, not longer than needed. Append this prompt (22 November 2026) to the Prompt log in AI_USAGE.md. Commit on the current branch with the message "docs: rewrite README for judges". Do not push. Report what changed and what you could not verify.
+
+### Prompt 21 validation
+
+The current local `npm test` run in `contracts/` reported **240 passing
+(240 nodejs)** on Hardhat's simulated network, using the existing cached compiler
+with telemetry disabled. No environment files were opened, packages installed,
+network commands run or transactions sent. The web server and CLI network steps
+were documented but not executed. Existing credits and licence text were
+preserved exactly; local documentation links and copied transaction/gas records
+were checked against repository evidence.
+
+The repository does not establish that official Q-Day Drill registration was
+closed, so that reason was omitted. The forged-refund screenshot and detailed
+rejection output are missing from the evidence folder, and scoped-window gas
+is not recorded. Browser signature-paste support remains unverified on chain;
+the documented QoreX read-only path is distinguished from injected-wallet write
+controls present in source. Current RPC state and explorer pages were not
+independently checked because this task prohibited network commands.
