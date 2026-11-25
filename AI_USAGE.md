@@ -42,6 +42,7 @@ with an AI tool: **to be confirmed by the developer**.
 | 21 November 2026 | Prompt 19 (full prompt below) | Replace the two agreement-list log scans with shared cached ID enumeration in batches of 10, ending only at ABI-decoded AgreementNotFound or the 500-ID cap. Preserve wallet filters and visual styling, report direct-read coverage, add offline mocked-client and cache tests, and leave the detail timeline's 20,000-block range unchanged. Run frontend checks and simulated contract tests, then commit locally without pushing. |
 | 21 November 2026 | Prompt 20 (full prompt below) | Read each agreement's indexed events from deployment block 10320988, verified in the public Ignition receipt; add an unknown-block fallback capped at 600,000 blocks, 20,000-block requests with four concurrent reads and retries, per-ID memory caching, scan coverage and state-inconsistency notes. Document the public setting without reading environment files, add mocked offline tests, run frontend checks and simulated contract tests, and commit locally without pushing. |
 | 22 November 2026 | Prompt 21 (full prompt below) | Rewrite the root README for judges using repository source, evidence, audit notes and current simulated test output (240 passing). Preserve the QoreChain badge and existing credits/licence, distinguish sent transactions from simulations and unresolved evidence, retain limitations, document the read-only review path and manual setup, and commit locally without pushing. |
+| 24 November 2026 | Prompt 22 (full prompt below) | Add the developer's exact forged-refund eth_call transcript from 20 November 2026, link it from the evidence index, and record the second scoped-window hash without inventing gas figures. Check the optional screenshot locally, validate the transcript and links, and commit without pushing or running network commands. |
 
 ### Prompt 18 — 21 November 2026
 
@@ -188,3 +189,28 @@ is not recorded. Browser signature-paste support remains unverified on chain;
 the documented QoreX read-only path is distinguished from injected-wallet write
 controls present in source. Current RPC state and explorer pages were not
 independently checked because this task prohibited network commands.
+
+### Prompt 22 — 24 November 2026
+
+Context: Rewind. Follow AGENTS.md. Never open or print any .env file. Do not run any network command, git push, pull or fetch.
+
+Edit docs/evidence/terminal-output.md. Add a new section "Forged refund (attack-demo refund-forged 1)" with the exact output below, unedited, in a fenced text block, with one line saying it is copied from the developer's terminal on 20 November 2026 and that it is an eth_call simulation, no transaction was sent:
+
+```text
+a classical-key attack demonstration
+Rewind contract: 0x775BbF36986FaBC54b64955c1D9b8EdB388E7c20
+agreement ID: 1; state: Funded
+simulated caller (stored buyer): 0x42B70a2Be6F875989b18DA907639479802101DB8; eth_call needs no signing key
+invalid signature length: 4627 bytes; signature contents are not printed
+validUntil: 1795160483; fulfilBy: 1795048996; block timestamp: 1795156883
+Rewind error: InvalidPqcSignature
+PASS: InvalidPqcSignature: Rewind rejected the invalid signature in eth_call; no transaction was sent.
+```
+
+Then, in docs/evidence/README.md, link this section, and add to the transaction table: "Second scoped window, opened before sign and release of agreement 3: 5D35C25B9F716A71292DAB88FF7A7799C0F4481AE44231831AB8F6E2CDBB9035". Check that attack-forged-refund.png exists in docs/evidence; link it only if it does, and otherwise list it as missing in your report. Do not invent gas figures for the window transactions. Append this prompt (24 November 2026) to AI_USAGE.md. Commit with the message "docs: add forged-refund transcript and second window hash". Do not push. Report what changed.
+
+Validation: the eight transcript lines were checked against the supplied text;
+the evidence link points to the matching section heading. The second window
+hash was copied exactly with no gas figure added. The screenshot
+`docs/evidence/attack-forged-refund.png` is missing and was not linked. No
+environment files were opened and no network commands or transactions were run.

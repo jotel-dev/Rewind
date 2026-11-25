@@ -1,5 +1,20 @@
 # Terminal output from the testnet runs (20 November 2026)
 
+## Forged refund (attack-demo refund-forged 1)
+
+Copied from the developer's terminal on 20 November 2026; this is an eth_call simulation, no transaction was sent.
+
+```text
+a classical-key attack demonstration
+Rewind contract: 0x775BbF36986FaBC54b64955c1D9b8EdB388E7c20
+agreement ID: 1; state: Funded
+simulated caller (stored buyer): 0x42B70a2Be6F875989b18DA907639479802101DB8; eth_call needs no signing key
+invalid signature length: 4627 bytes; signature contents are not printed
+validUntil: 1795160483; fulfilBy: 1795048996; block timestamp: 1795156883
+Rewind error: InvalidPqcSignature
+PASS: InvalidPqcSignature: Rewind rejected the invalid signature in eth_call; no transaction was sent.
+```
+
 ## Scoped window status (about 7 minutes after opening)
 
 This is the exact output copied from the developer's terminal, unedited.

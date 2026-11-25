@@ -9,6 +9,7 @@
 | createAgreement (agreement 2, gas used 144327) | `0xac357fc1a476a424013126711ce8177a89394fccdc9a9849e1dca5c8163f677c` |
 | refund with ML-DSA-87 authorisation (agreement 2, gas used 220420) | `0xff3e29cc829bbd31524d22f3dcb0bd6ecd75a92914d3d8e6ceb1c1a21c67d7fc` |
 | Scoped window (allowedTargets = Rewind contract only) | Opening tx `E06768BE9E60F3969ABEBE74C92FEBAA9E3A070D18BE2214457B160B68BDC48C` |
+| Second scoped window, opened before sign and release of agreement 3 | `5D35C25B9F716A71292DAB88FF7A7799C0F4481AE44231831AB8F6E2CDBB9035` |
 | Seller account | `0xd0e5B9fc404b1036a7C53128B6B756b23e0EFcf0` (`qor16rjmnlzqfvgrdf79xy5tdd6kkglqal8s3rmk62`), PQC key registered, own scoped window |
 | createAgreement (agreement 3, gas used 144315) | `0x401cfe0a0a7244cef86479e4fc0301b7555f3113b8d4b8c8d519bbb718e08f79` |
 | markFulfilled by the seller (agreement 3, gas used 42280) | `0xd9b31a36ee00674593e3b5fbf1c0f6577cb0970d0d718115511247c082326ba7` |
@@ -32,6 +33,7 @@ Missing screenshot file: `attack-forged-refund.png`.
 
 ## Terminal output
 
+- [Forged refund simulation](terminal-output.md#forged-refund-attack-demo-refund-forged-1)
 - [Out-of-scope transfer attempt](terminal-output.md#out-of-scope-transfer-attempt-attack-demo-transfer-out---send)
 - [Scoped window status](terminal-output.md#scoped-window-status-about-7-minutes-after-opening)
 
