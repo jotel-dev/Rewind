@@ -111,7 +111,7 @@ refund and release also have explorer screenshots. Gas figures are gas used.
   is missing, so detailed rejection output is not available in the evidence folder.
 - **Scoped window:** opening transaction
   [E06768BE9E60F3969ABEBE74C92FEBAA9E3A070D18BE2214457B160B68BDC48C](docs/evidence/README.md).
-  The [status transcript](docs/evidence/terminal-output.md#scoped-window-status-about-7-minutes-after-opening)
+  The [status transcript](docs/evidence/terminal-output.md#scoped-window-status-shortly-after-opening)
   reports a live window with `allowedTargets` containing only Rewind.
   Gas for this native-lane opening is not recorded in the evidence index.
   Gas for this native-lane opening is not recorded in the evidence index.

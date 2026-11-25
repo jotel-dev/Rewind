@@ -35,7 +35,7 @@ Missing screenshot file: `attack-forged-refund.png`.
 
 - [Forged refund simulation](terminal-output.md#forged-refund-attack-demo-refund-forged-1)
 - [Out-of-scope transfer attempt](terminal-output.md#out-of-scope-transfer-attempt-attack-demo-transfer-out---send)
-- [Scoped window status](terminal-output.md#scoped-window-status-about-7-minutes-after-opening)
+- [Scoped window status](terminal-output.md#scoped-window-status-shortly-after-opening)
 
 ## What this shows
 

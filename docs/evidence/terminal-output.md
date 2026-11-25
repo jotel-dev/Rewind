@@ -15,7 +15,7 @@ Rewind error: InvalidPqcSignature
 PASS: InvalidPqcSignature: Rewind rejected the invalid signature in eth_call; no transaction was sent.
 ```
 
-## Scoped window status (about 7 minutes after opening)
+## Scoped window status (shortly after opening)
 
 This is the exact output copied from the developer's terminal, unedited.
 

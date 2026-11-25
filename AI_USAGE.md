@@ -214,3 +214,8 @@ the evidence link points to the matching section heading. The second window
 hash was copied exactly with no gas figure added. The screenshot
 `docs/evidence/attack-forged-refund.png` is missing and was not linked. No
 environment files were opened and no network commands or transactions were run.
+
+### Prompt 23 — 25 November 2026
+
+Context: Rewind. Follow AGENTS.md. Never open or print any .env file. Do not run any network command, git push, pull or fetch.
+In docs/evidence/terminal-output.md, change the heading "Scoped window status (about 7 minutes after opening)" to "Scoped window status (shortly after opening)". Check docs/evidence/README.md, README.md and docs/AUDIT.md for the same "7 minutes" claim and fix it the same way if present. Change nothing else. Append this prompt (25 November 2026) to the Prompt log in AI_USAGE.md. Commit with the message "docs: remove an unsupported timing claim". Do not push. Report what changed.
